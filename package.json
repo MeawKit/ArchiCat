@@ -1,0 +1,20 @@
+{
+  "name": "archicat-repo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "pnpm run clean && lerna run build",
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "lerna run typecheck",
+    "test": "pnpm run build && node --test --test-concurrency=1 tests/*.test.mjs",
+    "publish:packages": "lerna publish from-package --yes --summary-file ./lerna-publish-summary.json"
+  },
+  "devDependencies": {
+    "lerna": "9.0.7",
+    "tsdown": "0.22.3",
+    "typescript": "6.0.3",
+    "unrun": "0.3.1"
+  }
+}

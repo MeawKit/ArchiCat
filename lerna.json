@@ -1,0 +1,11 @@
+{
+  "npmClient": "pnpm",
+  "version": "independent",
+  "command": {
+    "publish": {
+      "registry": "https://registry.npmjs.org/",
+      "allowBranch": ["main", "master"]
+    }
+  },
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+}

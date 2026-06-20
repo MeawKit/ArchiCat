@@ -1,0 +1,15 @@
+packages:
+  - packages/*
+
+saveExact: true
+strictPeerDependencies: true
+autoInstallPeers: true
+verifyDepsBeforeRun: false
+minimumReleaseAge: 0
+
+overrides:
+  typescript: 6.0.3
+  jiti: 2.7.0
+
+allowBuilds:
+  nx: true

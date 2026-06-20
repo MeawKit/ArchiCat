@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /* Project output */
+    "rootDir": "./",
+    "outDir": "./dist",
+    "declarationDir": "./dist/types",
+
+    /* Runtime types */
+    "types": ["node"],
+
+    /* Project paths */
+    "paths": {
+      "@/*": ["./src/*"],
+      "@cli/*": ["./src-cli/*"],
+      "@internal/*": ["./src-internal/*"]
+    }
+  },
+  "include": ["src", "src-cli", "src-internal", "tsdown.config.cli.ts", "tsdown.config.src.ts"],
+  "exclude": ["node_modules", "dist"]
+}
