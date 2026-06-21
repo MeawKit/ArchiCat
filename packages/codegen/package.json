@@ -1,9 +1,17 @@
 {
   "name": "archicat",
-  "version": "0.0.1",
-  "description": "Contract-first module boundaries for TypeScript moduliths.",
-  "keywords": [],
-  "license": "UNLICENSED",
+  "version": "0.0.2",
+  "description": "Modular mirroring for clean architecture.",
+  "keywords": [
+    "modular-mirroring",
+    "clean-architecture",
+    "modulith",
+    "module-boundaries",
+    "architecture",
+    "nodejs",
+    "codegen"
+  ],
+  "license": "MIT",
   "author": "Simon Rastislav Kovačič",
   "type": "module",
   "exports": {
@@ -19,11 +27,13 @@
     }
   },
   "bin": {
-    "archicat": "./bin/archicat.mjs"
+    "archicat": "bin/archicat.mjs"
   },
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsdown --config tsdown.config.cli.ts --config-loader unrun && tsdown --config tsdown.config.src.ts --config-loader unrun",

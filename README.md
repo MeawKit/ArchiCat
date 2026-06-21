@@ -1,31 +1,72 @@
 # ArchiCat
 
-Contract-first module boundaries for TypeScript moduliths.
+**Modular Mirroring for clean architecture.**
 
-ArchiCat generates a `.archicat` project layer from explicit module contracts. It gives a single TypeScript backend project Gradle-like `api` / `impl` boundaries without splitting every module into a package.
+ArchiCat is a 2M architecture framework: **Modular Mirroring**.
 
-## What ArchiCat does
+It takes explicit module definitions and generates a `.archicat` project layer with public module mirrors, aliases, dependency checks, graph output, and runtime composition entries.
 
-- generates public module aliases such as `@account` and `@account/session/context`
-- mirrors module API folders into `.archicat/modules/*/api`
-- hides module implementations from other modules
-- validates declared module dependencies
-- blocks cross-module source imports
-- generates a module graph and runtime composition entries
+```bash
+npm i -D archicat
+```
 
-ArchiCat does not generate business logic, repositories, routes, schemas, or domain models.
+## Why
 
-## Repository layout
+Clean architecture usually starts well.
+
+Then imports happen.
+
+One module reaches into another module's private folder. A route imports a repository directly. A helper reaches across features because the relative path was easy. Suddenly the architecture exists only in a diagram nobody opens.
+
+ArchiCat makes the module boundary part of the build.
 
 ```txt
-packages/codegen/
-  src/           public API for consumers
+source modules
+  -> ArchiCat module definitions
+  -> generated module mirrors
+  -> checked imports
+  -> clean architecture that can actually hold
+```
+
+## 2M: Modular Mirroring
+
+A module has two sides:
+
+```txt
+api   public surface other modules may use
+impl  private implementation hidden behind the mirror
+```
+
+ArchiCat mirrors the public API into `.archicat` and exposes it through generated aliases.
+
+```ts
+import { AccountReader } from '@account';
+import type { AccountSessionContext } from '@account/session/context';
+```
+
+Other modules do not import source folders directly.
+
+```ts
+import { AccountRepository } from '../../account/impl/repository'; // blocked
+```
+
+The rule is simple:
+
+```txt
+use the mirror, not the machinery
+```
+
+## Package
+
+```txt
+packages/codegen
+  src/           consumer-facing public API
   src-cli/       CLI runner
   src-internal/  generator, checker, loader, graph, scanner
   bin/           archicat binary
 ```
 
-The public package API is intentionally small:
+Consumer API:
 
 ```ts
 import { defineArchicatConfig, defineModule } from 'archicat';
@@ -47,9 +88,7 @@ export default defineArchicatConfig({
 });
 ```
 
-## Module contract
-
-Each module has an explicit contract:
+## Module definition
 
 ```ts
 import { defineModule } from 'archicat';
@@ -64,30 +103,11 @@ export default defineModule({
 
 Only `id` is required.
 
-If `api` is omitted, ArchiCat generates an empty public API mirror.  
-If `impl` is omitted, ArchiCat generates a no-op implementation mirror.
+If `api` is missing, ArchiCat generates an empty public API mirror.
 
-## Module imports
-
-Import other modules through generated public aliases:
-
-```ts
-import { AccountReader } from '@account';
-import type { AccountSessionContext } from '@account/session/context';
-```
-
-Do not import another module through source paths:
-
-```ts
-import { AccountReader } from '../../account/api/index.js'; // invalid
-import { AccountRepository } from '../../account/impl/index.js'; // invalid
-```
-
-A module may import another module only when it declares that module as a dependency.
+If `impl` is missing, ArchiCat generates a no-op implementation mirror.
 
 ## Generated output
-
-Running `archicat generate` creates:
 
 ```txt
 .archicat/
@@ -115,29 +135,16 @@ Your root `tsconfig.json` should extend the generated config:
 
 ## Commands
 
-```txt
-archicat generate   generate the .archicat project layer
-archicat check      validate module boundaries
-archicat graph      generate graph outputs
-archicat doctor     check project setup
-```
-
-
-## Release
-
-ArchiCat uses manual package versioning. Update `packages/codegen/package.json` yourself, push the change, and run the `Publish Packages` GitHub Action manually.
-
-The workflow publishes `archicat` to npm, creates a `vX.Y.Z` git tag from the published version, and creates a GitHub Release from that tag.
-
-```txt
-npm package     archicat@0.1.0
-git tag         v0.1.0
-GitHub Release  v0.1.0
+```bash
+archicat generate
+archicat check
+archicat graph
+archicat doctor
 ```
 
 ## Development
 
-```txt
+```bash
 pnpm install
 pnpm run build
 pnpm run typecheck
@@ -146,6 +153,18 @@ pnpm run test
 
 Tests create temporary consumer projects, link the built `archicat` package, run the real CLI, and verify generated output plus boundary failures.
 
-## Package status
+## Release
 
-The npm package is published as `archicat`. Verify name availability before the first publish.
+ArchiCat uses manual package versioning.
+
+Update `packages/codegen/package.json` yourself, push the change, and run the `Publish Packages` GitHub Action manually.
+
+The workflow publishes `archicat` to npm, creates a `vX.Y.Z` git tag, and creates a GitHub Release from that tag.
+
+```txt
+npm package     archicat@0.0.2
+git tag         v0.0.2
+GitHub Release  v0.0.2
+```
+
+Publishing uses npm Trusted Publishing / OIDC. No npm token is committed.
