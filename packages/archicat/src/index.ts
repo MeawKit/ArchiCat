@@ -1,8 +1,13 @@
 export type {
   ArchicatConfig,
   ArchicatConfigInput,
+  ArchicatDefinitionRootConfig,
+  ArchicatDependency,
+  ArchicatLibraryContract,
+  ArchicatLibraryInput,
   ArchicatModuleContract,
   ArchicatModuleInput,
-  ArchicatModuleRootConfig,
-} from './definition.js';
-export { defineArchicatConfig, defineModule } from './definition.js';
+  ArchicatPrefixConfig,
+  ArchicatProjectGraph,
+} from './configs/index.js';
+export { defineArchicatConfig, defineLibrary, defineModule } from './configs/index.js';

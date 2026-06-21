@@ -1,10 +1,10 @@
-# ArchiCat
+# Archicat
 
 **M²: Modular Mirroring.**
 
 The generative architecture framework for clean architecture.
 
-ArchiCat generates a module mirror from your source code. Public APIs become aliases. Implementations stay private. The mirror is the boundary.
+Archicat generates a module mirror from your source code. Public APIs become aliases. Implementations stay private. The mirror is the boundary.
 
 ```bash
 npm i -D archicat
@@ -33,17 +33,17 @@ You define the module:
 import { defineModule } from 'archicat';
 
 export default defineModule({
-  id: 'account',
+  id: 'media',
   api: './api',
   impl: './impl',
-  dependencies: ['media'],
+  dependencies: ['module.account.api'],
 });
 ```
 
-ArchiCat mirrors it:
+Archicat mirrors it:
 
 ```txt
-.archicat/modules/account/
+.archicat/modules/media/
   api/
   impl/
 ```
@@ -51,13 +51,13 @@ ArchiCat mirrors it:
 You import the mirror:
 
 ```ts
-import { AccountReader } from '@account';
+import { AccountReader } from '@module/account';
 ```
 
 Not the machinery:
 
 ```ts
-import { AccountRepository } from '@account/impl'; // does not exist
+import { AccountRepository } from '@module/account/impl'; // does not exist
 import { AccountRepository } from '../../account/impl/repository'; // blocked
 ```
 
@@ -67,10 +67,8 @@ import { AccountRepository } from '../../account/impl/repository'; // blocked
 import { defineArchicatConfig } from 'archicat';
 
 export default defineArchicatConfig({
-  root: '.',
-  outDir: './.archicat',
   modules: {
-    include: ['./src/modules/*/archicat.module.ts'],
+    include: ['./src/modules'],
   },
 });
 ```
@@ -80,10 +78,12 @@ export default defineArchicatConfig({
 ```txt
 .archicat/
   tsconfig.json
-  manifest.json
   modules/
-  generated/
-  report/
+  types/
+
+archicat-report/
+  build.json
+  graph.mmd
 ```
 
 Extend the generated config:

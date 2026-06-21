@@ -173,14 +173,9 @@ storybook-static/
 # ------------------------------------------------------------------------------
 # Custom
 # ------------------------------------------------------------------------------
+.archicat/
 
-apikit-build/
-apikit-output/
+tests/.tmp/
 
 **/generated/
 **/__generated__/
-
-
-.archicat/
-tests/.tmp/
-lerna-publish-summary.json

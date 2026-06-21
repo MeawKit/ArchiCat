@@ -1,2 +1,2 @@
-export * from './load-config.js';
-export * from './module-pattern.js';
+export { loadArchicatConfig, loadArchicatDefinition, loadArchicatLibrary, loadArchicatModule } from './load-config.js';
+export { resolveDefinitionFiles } from './module-pattern.js';

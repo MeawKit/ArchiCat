@@ -3,25 +3,68 @@ import path from 'node:path';
 
 // MARK: - Public
 
-export function resolveModuleContractPatterns(rootDir: string, patterns: readonly string[]): string[] {
-  const files = patterns.flatMap((pattern) => expandSingleStarPattern(rootDir, pattern));
+export function resolveDefinitionFiles(rootDir: string, includes: readonly string[], markerFileName: string): string[] {
+  const files = includes.flatMap((include) => expandInclude(rootDir, include, markerFileName));
   return Array.from(new Set(files)).sort((a, b) => a.localeCompare(b));
 }
 
 // MARK: - Private
 
-function expandSingleStarPattern(rootDir: string, pattern: string): string[] {
-  const absolutePattern = path.resolve(rootDir, pattern);
+function expandInclude(rootDir: string, include: string, markerFileName: string): string[] {
+  const resolved = path.resolve(rootDir, include);
 
-  if (!absolutePattern.includes('*')) {
-    return fs.existsSync(absolutePattern) ? [absolutePattern] : [];
+  if (include.includes('*')) {
+    return expandSingleStarPattern(rootDir, include).filter((filePath) => path.basename(filePath) === markerFileName);
   }
 
+  if (!fs.existsSync(resolved)) {
+    return [];
+  }
+
+  const stat = fs.statSync(resolved);
+
+  if (stat.isFile()) {
+    return path.basename(resolved) === markerFileName ? [resolved] : [];
+  }
+
+  if (!stat.isDirectory()) {
+    return [];
+  }
+
+  return findMarkerFiles(resolved, markerFileName);
+}
+
+function findMarkerFiles(rootPath: string, markerFileName: string): string[] {
+  const result: string[] = [];
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (shouldSkip(entry.name)) {
+      continue;
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+
+    if (entry.isDirectory()) {
+      result.push(...findMarkerFiles(entryPath, markerFileName));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name === markerFileName) {
+      result.push(entryPath);
+    }
+  }
+
+  return result;
+}
+
+function expandSingleStarPattern(rootDir: string, pattern: string): string[] {
+  const absolutePattern = path.resolve(rootDir, pattern);
   const parts = absolutePattern.split(path.sep);
   const starSegments = parts.filter((part) => part.includes('*'));
 
   if (starSegments.length !== 1) {
-    throw new Error(`ArchiCat V1 supports exactly one wildcard segment per include pattern: ${pattern}`);
+    throw new Error(`Archicat supports exactly one wildcard segment per include pattern: ${pattern}`);
   }
 
   const starIndex = parts.findIndex((part) => part.includes('*'));
@@ -45,4 +88,8 @@ function expandSingleStarPattern(rootDir: string, pattern: string): string[] {
 function makeWildcardRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, '\\$&').replace(/\*/gu, '.*');
   return new RegExp(`^${escaped}$`, 'u');
+}
+
+function shouldSkip(name: string): boolean {
+  return ['node_modules', '.git', '.archicat', 'archicat-report', 'dist', 'build', 'coverage'].includes(name);
 }

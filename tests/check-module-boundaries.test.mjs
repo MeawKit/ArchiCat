@@ -8,15 +8,15 @@ test.after(() => {
   cleanupConsumerProjects();
 });
 
-test('check allows alias imports when the target module is an explicit dependency', () => {
+test('check allows alias imports when the target module API is an explicit dependency', () => {
   const root = createConsumerProject('check-declared-dependency');
 
   createModule(root, { id: 'account' });
   createModule(root, {
     id: 'events',
-    dependencies: ['account'],
+    dependencies: ['module.account.api'],
     implIndex: `
-      import { accountApi } from '@account';
+      import { accountApi } from '@module/account';
       export const eventsImpl = accountApi;
     `,
   });
@@ -29,6 +29,24 @@ test('check allows alias imports when the target module is an explicit dependenc
   assert.match(result.stdout, /Architecture check passed/);
 });
 
+test('check allows module impl to import its own API without declaring itself', () => {
+  const root = createConsumerProject('check-own-api');
+
+  createModule(root, {
+    id: 'account',
+    implIndex: `
+      import { accountApi } from '@module/account';
+      export const accountImpl = accountApi;
+    `,
+  });
+
+  assert.equal(runArchicat(root, 'generate').status, 0);
+
+  const result = runArchicat(root, 'check');
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test('check rejects alias imports that are not declared as dependencies', () => {
   const root = createConsumerProject('check-missing-dependency');
 
@@ -36,7 +54,7 @@ test('check rejects alias imports that are not declared as dependencies', () => 
   createModule(root, {
     id: 'events',
     implIndex: `
-      import { accountApi } from '@account';
+      import { accountApi } from '@module/account';
       export const eventsImpl = accountApi;
     `,
   });
@@ -46,7 +64,7 @@ test('check rejects alias imports that are not declared as dependencies', () => 
   const result = runArchicat(root, 'check');
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Module "events" imports "account" but does not declare it in dependencies/);
+  assert.match(result.stderr, /imports "module\.account\.api" but does not declare it in dependencies/);
 });
 
 test('check rejects cross-module source imports even when the dependency is declared', () => {
@@ -55,7 +73,7 @@ test('check rejects cross-module source imports even when the dependency is decl
   createModule(root, { id: 'account' });
   createModule(root, {
     id: 'events',
-    dependencies: ['account'],
+    dependencies: ['module.account.api'],
     implIndex: `
       import { accountApi } from '../../account/api/index.js';
       export const eventsImpl = accountApi;
@@ -70,16 +88,14 @@ test('check rejects cross-module source imports even when the dependency is decl
   assert.match(result.stderr, /imports module "account" through a source path/);
 });
 
-test('check rejects declared module dependency cycles', () => {
+test('generate rejects declared module dependency cycles', () => {
   const root = createConsumerProject('check-dependency-cycle');
 
-  createModule(root, { id: 'account', dependencies: ['events'] });
-  createModule(root, { id: 'events', dependencies: ['account'] });
+  createModule(root, { id: 'account', dependencies: ['module.events.api'] });
+  createModule(root, { id: 'events', dependencies: ['module.account.api'] });
 
-  assert.equal(runArchicat(root, 'generate').status, 0);
-
-  const result = runArchicat(root, 'check');
+  const result = runArchicat(root, 'generate');
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Cyclic ArchiCat module dependency/);
+  assert.match(result.stderr, /Cyclic Archicat module dependency/);
 });

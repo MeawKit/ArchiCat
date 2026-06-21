@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -10,7 +11,7 @@ test.after(() => {
   cleanupConsumerProjects();
 });
 
-test('generate builds a Nuxt-like module mirror from explicit module contracts', () => {
+test('generate builds a module mirror, project graph, report, and graph types', () => {
   const root = createConsumerProject('generate-module-mirror');
 
   createModule(root, {
@@ -33,9 +34,9 @@ test('generate builds a Nuxt-like module mirror from explicit module contracts',
 
   createModule(root, {
     id: 'events',
-    dependencies: ['account'],
+    dependencies: ['module.account.api'],
     implIndex: `
-      import type { AccountSessionContext } from '@account/session/context';
+      import type { AccountSessionContext } from '@module/account/session/context';
       export type EventsSession = AccountSessionContext;
     `,
   });
@@ -44,39 +45,49 @@ test('generate builds a Nuxt-like module mirror from explicit module contracts',
 
   assert.equal(result.status, 0, result.stderr);
 
-  assertFileExists(path.join(root, '.archicat/manifest.json'));
   assertFileExists(path.join(root, '.archicat/tsconfig.json'));
-  assertFileExists(path.join(root, '.archicat/generated/composition.ts'));
-  assertFileExists(path.join(root, '.archicat/generated/modules.ts'));
-  assertFileExists(path.join(root, '.archicat/report/module-graph.json'));
-  assertFileExists(path.join(root, '.archicat/report/module-graph.mmd'));
+  assertFileExists(path.join(root, '.archicat/types/graph.d.ts'));
+  assertFileExists(path.join(root, '.archicat/modules/account/api/index.ts'));
+  assertFileExists(path.join(root, '.archicat/modules/account/impl/index.ts'));
+  assertFileExists(path.join(root, 'archicat-report/build.json'));
+  assertFileExists(path.join(root, 'archicat-report/graph.mmd'));
 
-  const manifest = readJson(path.join(root, '.archicat/manifest.json'));
-  assert.deepEqual(
-    manifest.modules.map((module) => ({ id: module.id, alias: module.alias, dependencies: module.dependencies })),
-    [
-      { id: 'account', alias: '@account', dependencies: [] },
-      { id: 'events', alias: '@events', dependencies: ['account'] },
-    ],
-  );
+  assert.equal(fs.existsSync(path.join(root, '.archicat/manifest.json')), false);
+  assert.equal(fs.existsSync(path.join(root, '.archicat/generated')), false);
+  assert.equal(fs.existsSync(path.join(root, '.archicat/report')), false);
+
+  const report = readJson(path.join(root, 'archicat-report/build.json'));
+  assert.equal(report.schemaVersion, 1);
+  assert.deepEqual(report.prefixes, {
+    module: '@module',
+    library: '@library',
+  });
+  assert.deepEqual(report.targets, [
+    'module.account.api',
+    'module.account.impl',
+    'module.events.api',
+    'module.events.impl',
+  ]);
 
   const tsconfig = readJson(path.join(root, '.archicat/tsconfig.json'));
-  assert.deepEqual(tsconfig.compilerOptions.paths['@account'], ['.archicat/modules/account/api/index.ts']);
-  assert.deepEqual(tsconfig.compilerOptions.paths['@account/*'], ['.archicat/modules/account/api/*']);
-  assert.deepEqual(tsconfig.compilerOptions.paths['#archicat/*'], ['.archicat/generated/*']);
+  assert.equal('baseUrl' in tsconfig.compilerOptions, false);
+  assert.deepEqual(tsconfig.compilerOptions.paths['@module/account'], ['./modules/account/api/index.ts']);
+  assert.deepEqual(tsconfig.compilerOptions.paths['@module/account/*'], ['./modules/account/api/*']);
+
+  const graphTypes = readText(path.join(root, '.archicat/types/graph.d.ts'));
+  assert.match(graphTypes, /interface ArchicatProjectGraph/);
+  assert.match(graphTypes, /'module\.account\.api': true/);
+  assert.match(graphTypes, /'module\.account\.impl': true/);
 
   const mirroredIndex = readText(path.join(root, '.archicat/modules/account/api/index.ts'));
   const mirroredReader = readText(path.join(root, '.archicat/modules/account/api/reader.ts'));
   const mirroredContext = readText(path.join(root, '.archicat/modules/account/api/session/context.ts'));
 
+  assert.match(mirroredIndex, /^\/\/ Mirrored by Archicat\./);
   assert.match(mirroredIndex, /export \* from/);
   assert.match(mirroredIndex, /export \{ default \} from/);
   assert.match(mirroredReader, /export \{ default \} from/);
   assert.match(mirroredContext, /export \* from/);
-
-  const composition = readText(path.join(root, '.archicat/generated/modules.ts'));
-  assert.match(composition, /\.\.\/modules\/account\/impl\/index\.js/);
-  assert.match(composition, /\.\.\/modules\/events\/impl\/index\.js/);
 });
 
 test('generate creates stable empty API and no-op implementation mirrors for omitted surfaces', () => {
@@ -91,6 +102,55 @@ test('generate creates stable empty API and no-op implementation mirrors for omi
   assert.match(readText(path.join(root, '.archicat/modules/account/impl/index.ts')), /ArchicatModuleImplementation/);
 
   const tsconfig = readJson(path.join(root, '.archicat/tsconfig.json'));
-  assert.deepEqual(tsconfig.compilerOptions.paths['@account'], ['.archicat/modules/account/api/index.ts']);
-  assert.deepEqual(tsconfig.compilerOptions.paths['@account/*'], ['.archicat/modules/account/api/*']);
+  assert.deepEqual(tsconfig.compilerOptions.paths['@module/account'], ['./modules/account/api/index.ts']);
+  assert.deepEqual(tsconfig.compilerOptions.paths['@module/account/*'], ['./modules/account/api/*']);
+});
+
+test('generate merges user tsconfig paths and rejects Archicat prefix conflicts', () => {
+  const root = createConsumerProject('generate-tsconfig-merge', {
+    tsconfigBase: `
+      {
+        "compilerOptions": {
+          "target": "ES2024",
+          "module": "NodeNext",
+          "moduleResolution": "NodeNext",
+          "strict": true,
+          "paths": {
+            "@app/*": ["src/*"]
+          }
+        }
+      }
+    `,
+  });
+
+  createModule(root, { id: 'account' });
+
+  const result = runArchicat(root, 'generate');
+  assert.equal(result.status, 0, result.stderr);
+
+  const tsconfig = readJson(path.join(root, '.archicat/tsconfig.json'));
+  assert.deepEqual(tsconfig.compilerOptions.paths['@app/*'], ['../src/*']);
+  assert.deepEqual(tsconfig.compilerOptions.paths['@module/account'], ['./modules/account/api/index.ts']);
+
+  const conflictRoot = createConsumerProject('generate-tsconfig-conflict', {
+    tsconfigBase: `
+      {
+        "compilerOptions": {
+          "target": "ES2024",
+          "module": "NodeNext",
+          "moduleResolution": "NodeNext",
+          "strict": true,
+          "paths": {
+            "@module/*": ["src/module/*"]
+          }
+        }
+      }
+    `,
+  });
+
+  createModule(conflictRoot, { id: 'account' });
+
+  const conflict = runArchicat(conflictRoot, 'generate');
+  assert.notEqual(conflict.status, 0);
+  assert.match(conflict.stderr, /Tsconfig alias conflict/);
 });

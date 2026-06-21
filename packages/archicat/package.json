@@ -1,7 +1,7 @@
 {
   "name": "archicat",
-  "version": "0.0.3",
-  "description": "M²: modular mirroring for clean architecture.",
+  "version": "0.0.4",
+  "description": "M\u00b2: modular mirroring for clean architecture.",
   "keywords": [
     "m2",
     "modular-mirroring",
@@ -10,7 +10,7 @@
     "architecture"
   ],
   "license": "MIT",
-  "author": "Simon Rastislav Kovačič",
+  "author": "Simon Rastislav Kova\u010di\u010d",
   "type": "module",
   "exports": {
     ".": {

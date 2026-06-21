@@ -1,5 +1,5 @@
-import { check } from '@internal/checker';
-import { doctor } from '@internal/checker/doctor';
+import { validate } from '@internal/validator';
+import { doctor } from '@internal/doctor';
 import { generate } from '@internal/generator';
 
 // MARK: - Public
@@ -17,7 +17,7 @@ export async function runMain(argv = process.argv.slice(2)): Promise<void> {
       }
 
       case 'check': {
-        const violations = await check(options.config);
+        const violations = await validate(options.config);
 
         if (violations.length === 0) {
           logSuccess('Architecture check passed.');
@@ -107,7 +107,7 @@ function parseOptions(args: string[]): CliOptions {
 
 function printHelp(): void {
   console.log([
-    'ArchiCat',
+    'Archicat',
     '',
     'Usage:',
     '  archicat generate [--config archicat.config.ts]',

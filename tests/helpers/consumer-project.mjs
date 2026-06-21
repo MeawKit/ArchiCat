@@ -4,14 +4,14 @@ import path from 'node:path';
 import { archicatPackageRoot, tmpRoot } from './paths.mjs';
 import { writeFile } from './files.mjs';
 
-export function createConsumerProject(name) {
+export function createConsumerProject(name, options = {}) {
   fs.mkdirSync(tmpRoot, { recursive: true });
 
   const root = fs.mkdtempSync(path.join(tmpRoot, `${name}-`));
 
   linkArchicatPackage(root);
-  writeRootConfig(root);
-  writeTsconfig(root);
+  writeRootConfig(root, options.config ?? {});
+  writeTsconfig(root, options.tsconfigBase ?? undefined);
 
   return root;
 }
@@ -58,22 +58,27 @@ function linkArchicatPackage(root) {
   fs.symlinkSync(archicatPackageRoot, linkPath, 'junction');
 }
 
-function writeRootConfig(root) {
+function writeRootConfig(root, config) {
+  const modulesInclude = config.modulesInclude ?? ['./src/modules'];
+  const tsconfig = config.tsconfig ?? './tsconfig.base.json';
+  const prefixBlock = config.prefixes
+    ? `\n      prefixes: ${JSON.stringify(config.prefixes, null, 8).replace(/"([^"\\]+)":/g, '$1:')},`
+    : '';
+
   writeFile(path.join(root, 'archicat.config.ts'), `
     import { defineArchicatConfig } from 'archicat';
 
     export default defineArchicatConfig({
-      root: '.',
-      outDir: './.archicat',
+      tsconfig: '${tsconfig}',${prefixBlock}
       modules: {
-        include: ['./src/modules/*/archicat.module.ts'],
+        include: ${JSON.stringify(modulesInclude)},
       },
     });
   `);
 }
 
-function writeTsconfig(root) {
-  writeFile(path.join(root, 'tsconfig.base.json'), `
+function writeTsconfig(root, tsconfigBase) {
+  writeFile(path.join(root, 'tsconfig.base.json'), tsconfigBase ?? `
     {
       "compilerOptions": {
         "target": "ES2024",

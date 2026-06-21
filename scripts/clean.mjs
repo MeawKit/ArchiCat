@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const targets = ['dist', '.archicat', 'tests/.tmp'];
+const targets = ['dist', '.archicat', 'archicat-report', 'tests/.tmp'];
 
 for (const target of targets) {
   fs.rmSync(path.join(root, target), { recursive: true, force: true });

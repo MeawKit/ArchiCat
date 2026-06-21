@@ -37,7 +37,7 @@ function checkRootTsconfig(project: ResolvedArchicatProject): ArchicatDoctorIssu
     if (parsed.extends !== './.archicat/tsconfig.json' && parsed.extends !== '.archicat/tsconfig.json') {
       issues.push({
         severity: 'warning',
-        message: 'Root tsconfig.json should extend ./.archicat/tsconfig.json for ArchiCat aliases to work like Nuxt.',
+        message: 'Root tsconfig.json should extend ./.archicat/tsconfig.json for Archicat aliases to work like Nuxt.',
       });
     }
 
@@ -58,20 +58,20 @@ function checkPhysicalOmissions(project: ResolvedArchicatProject): ArchicatDocto
   const issues: ArchicatDoctorIssue[] = [];
 
   for (const module of project.modules) {
-    const apiPath = path.join(module.moduleDir, 'api');
-    const implPath = path.join(module.moduleDir, 'impl');
+    const apiPath = path.join(module.definitionDir, 'api');
+    const implPath = path.join(module.definitionDir, 'impl');
 
     if (!module.apiRootPath && fs.existsSync(apiPath)) {
       issues.push({
         severity: 'warning',
-        message: `Module "${module.id}" has a physical api directory but its contract omits api. ArchiCat treats the public API as empty.`,
+        message: `Module "${module.id}" has a physical api directory but its contract omits api. Archicat treats the public API as empty.`,
       });
     }
 
     if (!module.implRootPath && fs.existsSync(implPath)) {
       issues.push({
         severity: 'warning',
-        message: `Module "${module.id}" has a physical impl directory but its contract omits impl. ArchiCat treats the implementation as no-op.`,
+        message: `Module "${module.id}" has a physical impl directory but its contract omits impl. Archicat treats the implementation as no-op.`,
       });
     }
   }

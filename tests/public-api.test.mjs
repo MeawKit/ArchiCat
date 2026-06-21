@@ -3,37 +3,48 @@ import test from 'node:test';
 
 import * as publicApi from '../packages/archicat/dist/src/index.mjs';
 
-test('public package API exposes only the consumer-facing ArchiCat DSL', () => {
-  assert.deepEqual(Object.keys(publicApi).sort(), ['defineArchicatConfig', 'defineModule']);
+test('public package API exposes the consumer-facing Archicat DSL', () => {
+  assert.deepEqual(Object.keys(publicApi).sort(), [
+    'defineArchicatConfig',
+    'defineLibrary',
+    'defineModule',
+  ]);
 });
 
 test('defineModule creates an immutable module contract with safe defaults', () => {
   const module = publicApi.defineModule({ id: 'account' });
 
   assert.deepEqual(module, {
+    kind: 'module',
     id: 'account',
     dependencies: [],
   });
 
   assert.throws(() => {
-    module.dependencies.push('events');
+    module.dependencies.push('module.events.api');
   });
 });
 
-test('defineArchicatConfig creates an immutable root build contract', () => {
+test('defineLibrary creates an immutable library contract with safe defaults', () => {
+  const library = publicApi.defineLibrary({ id: 'backend' });
+
+  assert.deepEqual(library, {
+    kind: 'library',
+    id: 'backend',
+    dependencies: [],
+  });
+});
+
+test('defineArchicatConfig creates an immutable root build contract with optional input', () => {
   const config = publicApi.defineArchicatConfig({
-    root: '.',
-    outDir: './.archicat',
     modules: {
-      include: ['./src/modules/*/archicat.module.ts'],
+      include: ['./src/modules'],
     },
   });
 
-  assert.equal(config.root, '.');
-  assert.equal(config.outDir, './.archicat');
-  assert.deepEqual(config.modules.include, ['./src/modules/*/archicat.module.ts']);
+  assert.deepEqual(config.modules.include, ['./src/modules']);
 
   assert.throws(() => {
-    config.modules.include.push('./other.ts');
+    config.modules.include.push('./other');
   });
 });
