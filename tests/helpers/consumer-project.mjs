@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { codegenPackageRoot, tmpRoot } from './paths.mjs';
+import { archicatPackageRoot, tmpRoot } from './paths.mjs';
 import { writeFile } from './files.mjs';
 
 export function createConsumerProject(name) {
@@ -9,7 +9,7 @@ export function createConsumerProject(name) {
 
   const root = fs.mkdtempSync(path.join(tmpRoot, `${name}-`));
 
-  linkCodegenPackage(root);
+  linkArchicatPackage(root);
   writeRootConfig(root);
   writeTsconfig(root);
 
@@ -49,13 +49,13 @@ export function cleanupConsumerProjects() {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 }
 
-function linkCodegenPackage(root) {
+function linkArchicatPackage(root) {
   const nodeModulesDir = path.join(root, 'node_modules');
   const linkPath = path.join(nodeModulesDir, 'archicat');
 
   fs.mkdirSync(nodeModulesDir, { recursive: true });
   fs.rmSync(linkPath, { recursive: true, force: true });
-  fs.symlinkSync(codegenPackageRoot, linkPath, 'junction');
+  fs.symlinkSync(archicatPackageRoot, linkPath, 'junction');
 }
 
 function writeRootConfig(root) {

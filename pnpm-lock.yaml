@@ -25,7 +25,7 @@ importers:
         specifier: 0.3.1
         version: 0.3.1
 
-  packages/codegen:
+  packages/archicat:
     dependencies:
       jiti:
         specifier: 2.7.0

@@ -50,6 +50,12 @@ jobs:
       - name: Test packages
         run: node --test --test-concurrency=1 tests/*.test.mjs
 
+      # MARK: - Prepare Package Assets
+      - name: Prepare package assets
+        run: |
+          cp README.md packages/archicat/README.md
+          cp LICENSE packages/archicat/LICENSE
+
       # MARK: - Publish Packages
       - name: Publish packages
         run: pnpm run publish:packages

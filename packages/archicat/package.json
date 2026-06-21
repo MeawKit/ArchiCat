@@ -1,15 +1,13 @@
 {
   "name": "archicat",
-  "version": "0.0.2",
-  "description": "Modular mirroring for clean architecture.",
+  "version": "0.0.3",
+  "description": "M²: modular mirroring for clean architecture.",
   "keywords": [
+    "m2",
     "modular-mirroring",
+    "module-system",
     "clean-architecture",
-    "modulith",
-    "module-boundaries",
-    "architecture",
-    "nodejs",
-    "codegen"
+    "architecture"
   ],
   "license": "MIT",
   "author": "Simon Rastislav Kovačič",
@@ -49,7 +47,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MeawKit/ArchiCat.git",
-    "directory": "packages/codegen"
+    "directory": "packages/archicat"
   },
   "bugs": {
     "url": "https://github.com/MeawKit/ArchiCat/issues"

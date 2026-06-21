@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as publicApi from '../packages/codegen/dist/src/index.mjs';
+import * as publicApi from '../packages/archicat/dist/src/index.mjs';
 
 test('public package API exposes only the consumer-facing ArchiCat DSL', () => {
   assert.deepEqual(Object.keys(publicApi).sort(), ['defineArchicatConfig', 'defineModule']);
