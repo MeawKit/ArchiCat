@@ -1,2 +1,2 @@
 export * from './archicat-defaults.js';
-export * from './load-project.js';
+export { loadArchicatConfig } from './load-config.js';

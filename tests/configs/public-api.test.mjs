@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as publicApi from '../packages/archicat/dist/src/index.mjs';
+import * as publicApi from '../../packages/archicat/dist/src/index.mjs';
 
-test('public package API exposes the consumer-facing Archicat DSL', () => {
+test('should expose the consumer-facing Archicat DSL', () => {
   assert.deepEqual(Object.keys(publicApi).sort(), [
     'defineArchicatConfig',
     'defineLibrary',
@@ -11,7 +11,7 @@ test('public package API exposes the consumer-facing Archicat DSL', () => {
   ]);
 });
 
-test('defineModule creates an immutable module contract with safe defaults', () => {
+test('should define immutable module contract with safe defaults', () => {
   const module = publicApi.defineModule({ id: 'account' });
 
   assert.deepEqual(module, {
@@ -25,7 +25,7 @@ test('defineModule creates an immutable module contract with safe defaults', () 
   });
 });
 
-test('defineLibrary creates an immutable library contract with safe defaults', () => {
+test('should define immutable library contract with safe defaults', () => {
   const library = publicApi.defineLibrary({ id: 'backend' });
 
   assert.deepEqual(library, {
@@ -35,7 +35,7 @@ test('defineLibrary creates an immutable library contract with safe defaults', (
   });
 });
 
-test('defineArchicatConfig creates an immutable root build contract with optional input', () => {
+test('should define immutable root config with optional input', () => {
   const config = publicApi.defineArchicatConfig({
     modules: {
       include: ['./src/modules'],

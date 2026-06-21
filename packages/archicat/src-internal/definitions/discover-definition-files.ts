@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // MARK: - Public
 
-export function resolveDefinitionFiles(rootDir: string, includes: readonly string[], markerFileName: string): string[] {
+export function discoverDefinitionFiles(rootDir: string, includes: readonly string[], markerFileName: string): string[] {
   const files = includes.flatMap((include) => expandInclude(rootDir, include, markerFileName));
   return Array.from(new Set(files)).sort((a, b) => a.localeCompare(b));
 }

@@ -1,17 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { ArchicatConfig, ArchicatLibraryContract, ArchicatModuleContract } from '@/configs';
-import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
+import type { ArchicatConfig } from '@/configs';
 import { createJiti } from 'jiti';
 
-import type {
-  LoadedArchicatConfig,
-  LoadedArchicatDefinition,
-  LoadedArchicatLibrary,
-  LoadedArchicatModule,
-  ResolvedArchicatConfig,
-} from '@internal/model';
+import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
+import type { LoadedArchicatConfig, ResolvedArchicatConfig } from '@internal/model';
 
 // MARK: - Public
 
@@ -43,40 +37,7 @@ export async function loadArchicatConfig(configFileName = 'archicat.config.ts'):
   };
 }
 
-export async function loadArchicatModule(filePath: string): Promise<LoadedArchicatModule> {
-  const contract = await importDefault<ArchicatModuleContract>(filePath, path.dirname(filePath));
-  assertArchicatDefinition(contract, filePath, 'module');
-
-  return {
-    kind: 'module',
-    contractFilePath: filePath,
-    definitionDir: path.dirname(filePath),
-    contract,
-  };
-}
-
-export async function loadArchicatLibrary(filePath: string): Promise<LoadedArchicatLibrary> {
-  const contract = await importDefault<ArchicatLibraryContract>(filePath, path.dirname(filePath));
-  assertArchicatDefinition(contract, filePath, 'library');
-
-  return {
-    kind: 'library',
-    contractFilePath: filePath,
-    definitionDir: path.dirname(filePath),
-    contract,
-  };
-}
-
-export async function loadArchicatDefinition(filePath: string, kind: 'module' | 'library'): Promise<LoadedArchicatDefinition> {
-  switch (kind) {
-    case 'module':
-      return loadArchicatModule(filePath);
-    case 'library':
-      return loadArchicatLibrary(filePath);
-  }
-}
-
-// MARK: - Private
+// MARK: - Private import
 
 async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   const jiti = createJiti(rootDir, {
@@ -87,6 +48,8 @@ async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   const imported = await jiti.import(filePath, { default: true });
   return imported as T;
 }
+
+// MARK: - Private resolve
 
 function resolveConfig(config: ArchicatConfig): ResolvedArchicatConfig {
   return {
@@ -122,6 +85,8 @@ function resolveTsconfigPath(rootDir: string, configuredTsconfig: string | undef
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
+// MARK: - Private validate
+
 function assertArchicatConfig(input: unknown, filePath: string): asserts input is ArchicatConfig {
   if (input == null || typeof input !== 'object') {
     throw new Error(`Invalid Archicat config: ${filePath}`);
@@ -139,36 +104,6 @@ function assertArchicatConfig(input: unknown, filePath: string): asserts input i
 
   assertOptionalPrefix(config.prefixes?.module, 'prefixes.module', filePath);
   assertOptionalPrefix(config.prefixes?.library, 'prefixes.library', filePath);
-}
-
-function assertArchicatDefinition(
-  input: unknown,
-  filePath: string,
-  expectedKind: 'module' | 'library',
-): asserts input is ArchicatModuleContract | ArchicatLibraryContract {
-  if (input == null || typeof input !== 'object') {
-    throw new Error(`Invalid Archicat ${expectedKind} definition: ${filePath}`);
-  }
-
-  const definition = input as Partial<ArchicatModuleContract | ArchicatLibraryContract>;
-
-  if (definition.kind !== expectedKind) {
-    throw new Error(`Archicat ${expectedKind} file must export define${capitalize(expectedKind)}(...): ${filePath}`);
-  }
-
-  if (typeof definition.id !== 'string' || definition.id.trim() === '') {
-    throw new Error(`Archicat ${expectedKind} must define a non-empty id: ${filePath}`);
-  }
-
-  assertOptionalNonEmptyString(definition.api, 'api', filePath);
-
-  if (expectedKind === 'module') {
-    assertOptionalNonEmptyString((definition as Partial<ArchicatModuleContract>).impl, 'impl', filePath);
-  }
-
-  if (!Array.isArray(definition.dependencies)) {
-    throw new Error(`Archicat ${expectedKind} dependencies must be an array: ${filePath}`);
-  }
 }
 
 function assertOptionalNonEmptyString(value: unknown, key: string, filePath: string): void {
@@ -191,8 +126,4 @@ function assertOptionalPrefix(value: unknown, key: string, filePath: string): vo
   if (typeof value !== 'string' || value.trim() === '' || value.includes('*') || value.endsWith('/')) {
     throw new Error(`Archicat config ${key} must be a non-empty prefix without wildcard or trailing slash: ${filePath}`);
   }
-}
-
-function capitalize(value: string): string {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }

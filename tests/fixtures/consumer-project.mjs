@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { archicatPackageRoot, tmpRoot } from './paths.mjs';
 import { writeFile } from './files.mjs';
+import { archicatPackageRoot, tmpRoot } from './paths.mjs';
 
 export function createConsumerProject(name, options = {}) {
   fs.mkdirSync(tmpRoot, { recursive: true });
@@ -45,6 +45,30 @@ export function createModule(root, options) {
   return moduleDir;
 }
 
+export function createLibrary(root, options) {
+  const libraryDir = path.join(root, 'src/libraries', options.id);
+  const fields = [`id: '${options.id}'`];
+
+  if (options.api !== false) {
+    fields.push("api: './api'");
+    writeFile(path.join(libraryDir, 'api/index.ts'), options.apiIndex ?? `export const ${toIdentifier(options.id)}Library = '${options.id}';`);
+  }
+
+  if (options.dependencies?.length) {
+    fields.push(`dependencies: [${options.dependencies.map((dependency) => `'${dependency}'`).join(', ')}]`);
+  }
+
+  writeFile(path.join(libraryDir, 'archicat.library.ts'), `
+    import { defineLibrary } from 'archicat';
+
+    export default defineLibrary({
+      ${fields.join(',\n      ')},
+    });
+  `);
+
+  return libraryDir;
+}
+
 export function cleanupConsumerProjects() {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 }
@@ -60,6 +84,7 @@ function linkArchicatPackage(root) {
 
 function writeRootConfig(root, config) {
   const modulesInclude = config.modulesInclude ?? ['./src/modules'];
+  const librariesInclude = config.librariesInclude ?? [];
   const tsconfig = config.tsconfig ?? './tsconfig.base.json';
   const prefixBlock = config.prefixes
     ? `\n      prefixes: ${JSON.stringify(config.prefixes, null, 8).replace(/"([^"\\]+)":/g, '$1:')},`
@@ -72,6 +97,9 @@ function writeRootConfig(root, config) {
       tsconfig: '${tsconfig}',${prefixBlock}
       modules: {
         include: ${JSON.stringify(modulesInclude)},
+      },
+      libraries: {
+        include: ${JSON.stringify(librariesInclude)},
       },
     });
   `);

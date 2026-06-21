@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { loadResolvedArchicatProject } from '@internal/configuration';
+import { loadArchicatBuildContext } from '@internal/build';
 import type { ArchicatDoctorIssue, ResolvedArchicatProject } from '@internal/model';
 
 // MARK: - Public
 
 export async function doctor(configFileName?: string): Promise<ArchicatDoctorIssue[]> {
-  const project = await loadResolvedArchicatProject(configFileName);
+  const project = await loadArchicatBuildContext(configFileName);
   return [...checkGeneratedTsconfig(project), ...checkRootTsconfig(project), ...checkPhysicalOmissions(project)];
 }
 

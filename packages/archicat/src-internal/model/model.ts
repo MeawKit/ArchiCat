@@ -62,7 +62,7 @@ export interface ArchicatGraphTarget {
 export interface ArchicatGraphDependency {
   from: string;
   to: string;
-  implicit: boolean;
+  origin: 'declared' | 'derived';
 }
 
 export interface ResolvedArchicatModule {

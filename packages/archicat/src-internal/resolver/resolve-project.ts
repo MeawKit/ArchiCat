@@ -131,16 +131,16 @@ function buildGraph(definitions: readonly ResolvedArchicatDefinition[]): {
 
   const explicitDependencies = definitions.flatMap((definition) => {
     const from = definition.kind === 'module' ? definition.implTarget : definition.apiTarget;
-    return definition.dependencies.map((dependency) => ({ from, to: dependency, implicit: false }));
+    return definition.dependencies.map((dependency) => ({ from, to: dependency, origin: 'declared' as const }));
   });
 
-  const implicitDependencies = definitions
+  const derivedDependencies = definitions
     .filter((definition): definition is ResolvedArchicatModule => definition.kind === 'module')
-    .map((module) => ({ from: module.implTarget, to: module.apiTarget, implicit: true }));
+    .map((module) => ({ from: module.implTarget, to: module.apiTarget, origin: 'derived' as const }));
 
   return {
     targets,
-    dependencies: [...implicitDependencies, ...explicitDependencies],
+    dependencies: [...derivedDependencies, ...explicitDependencies],
   };
 }
 

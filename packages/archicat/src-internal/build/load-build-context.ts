@@ -1,18 +1,18 @@
-import { loadArchicatConfig, loadArchicatDefinition, resolveDefinitionFiles } from '@internal/loader';
+import { loadArchicatConfig } from '@internal/configuration';
+import { discoverDefinitionFiles, loadArchicatDefinition } from '@internal/definitions';
 import type { LoadedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
 import { resolveArchicatProject } from '@internal/resolver';
 
 // MARK: - Public
 
-export async function loadResolvedArchicatProject(configFileName?: string): Promise<ResolvedArchicatProject> {
+export async function loadArchicatBuildContext(configFileName?: string): Promise<ResolvedArchicatProject> {
   const loadedConfig = await loadArchicatConfig(configFileName);
-
-  const moduleFiles = resolveDefinitionFiles(
+  const moduleFiles = discoverDefinitionFiles(
     loadedConfig.rootDir,
     loadedConfig.resolvedConfig.modules.include,
     'archicat.module.ts',
   );
-  const libraryFiles = resolveDefinitionFiles(
+  const libraryFiles = discoverDefinitionFiles(
     loadedConfig.rootDir,
     loadedConfig.resolvedConfig.libraries.include,
     'archicat.library.ts',

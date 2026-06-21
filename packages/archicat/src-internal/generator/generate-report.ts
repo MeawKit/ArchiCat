@@ -3,14 +3,12 @@ import path from 'node:path';
 import type { ArchicatBuildReport, ResolvedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
 import { makeRelativeDisplayPath } from '@internal/path';
 
-import { writeJsonFile, writeTextFile } from '@internal/generator/file-writer';
+import { writeJsonFile } from '@internal/generator/file-writer';
 
 // MARK: - Public
 
 export function generateReport(project: ResolvedArchicatProject): void {
-  const report = makeBuildReport(project);
-  writeJsonFile(path.join(project.reportDir, 'build.json'), report);
-  writeTextFile(path.join(project.reportDir, 'graph.mmd'), generateMermaid(project));
+  writeJsonFile(path.join(project.reportDir, 'build.json'), makeBuildReport(project));
 }
 
 // MARK: - Private
@@ -71,23 +69,4 @@ function makeDefinitionReport(project: ResolvedArchicatProject, definition: Reso
       api: makeRelativeDisplayPath(project.rootDir, definition.mirrorApiRootPath),
     },
   };
-}
-
-function generateMermaid(project: ResolvedArchicatProject): string {
-  const lines = ['graph TD'];
-
-  for (const target of project.graph.targets) {
-    lines.push(`  ${sanitize(target.key)}[${target.key}]`);
-  }
-
-  for (const dependency of project.graph.dependencies) {
-    const style = dependency.implicit ? '-.->' : '-->';
-    lines.push(`  ${sanitize(dependency.from)} ${style} ${sanitize(dependency.to)}`);
-  }
-
-  return `${lines.join('\n')}\n`;
-}
-
-function sanitize(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_]/gu, '_');
 }

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { loadResolvedArchicatProject } from '@internal/configuration';
+import { loadArchicatBuildContext } from '@internal/build';
 import type {
   ArchicatViolation,
   ResolvedArchicatDefinition,
@@ -12,7 +12,7 @@ import { listTypeScriptFiles, scanImports } from '@internal/scanner';
 // MARK: - Public
 
 export async function validate(configFileName?: string): Promise<ArchicatViolation[]> {
-  const project = await loadResolvedArchicatProject(configFileName);
+  const project = await loadArchicatBuildContext(configFileName);
   return validateImports(project);
 }
 

@@ -83,7 +83,6 @@ export default defineArchicatConfig({
 
 archicat-report/
   build.json
-  graph.mmd
 ```
 
 Extend the generated config:

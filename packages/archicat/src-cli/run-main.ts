@@ -1,91 +1,59 @@
-import { validate } from '@internal/validator';
-import { doctor } from '@internal/doctor';
-import { generate } from '@internal/generator';
+import type { ArchicatCliCommandLine, ArchicatCliCommandOptions, ArchicatCliCommandResult } from './commands/index.js';
+import { runCheckCommand, runDoctorCommand, runGenerateCommand, runGraphCommand } from './commands/index.js';
 
 // MARK: - Public
 
 export async function runMain(argv = process.argv.slice(2)): Promise<void> {
   const [command, ...rest] = argv;
-  const options = parseOptions(rest);
 
   try {
-    switch (command) {
-      case 'generate': {
-        const project = await generate(options.config);
-        logSuccess(`Generated ${project.modules.length} module(s) into ${project.outDir}`);
-        return;
-      }
+    const options = parseOptions(rest);
+    const result = await runCommand(command, options);
 
-      case 'check': {
-        const violations = await validate(options.config);
-
-        if (violations.length === 0) {
-          logSuccess('Architecture check passed.');
-          return;
-        }
-
-        for (const violation of violations) {
-          logError(`${violation.filePath}\n  import: ${violation.importPath}\n  ${violation.message}`);
-        }
-
-        process.exitCode = 1;
-        return;
-      }
-
-      case 'graph': {
-        const project = await generate(options.config);
-        logSuccess(`Generated graph for ${project.modules.length} module(s).`);
-        return;
-      }
-
-      case 'doctor': {
-        const issues = await doctor(options.config);
-
-        if (issues.length === 0) {
-          logSuccess('Doctor found no issues.');
-          return;
-        }
-
-        for (const issue of issues) {
-          if (issue.severity === 'error') {
-            logError(issue.message);
-            continue;
-          }
-
-          logWarn(issue.message);
-        }
-
-        return;
-      }
-
-      case 'help':
-      case '--help':
-      case '-h':
-      case undefined: {
-        printHelp();
-        return;
-      }
-
-      default: {
-        logError(`Unknown command: ${command}`);
-        printHelp();
-        process.exitCode = 1;
-      }
+    if (!result) {
+      return;
     }
+
+    printResult(result);
+    process.exitCode = result.exitCode;
   } catch (error) {
-    logError(error instanceof Error ? error.message : String(error));
+    printLine({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     process.exitCode = 1;
   }
 }
 
-// MARK: - Private
+// MARK: - Private command routing
 
-interface CliOptions {
-  config?: string;
+async function runCommand(
+  command: string | undefined,
+  options: ArchicatCliCommandOptions,
+): Promise<ArchicatCliCommandResult | undefined> {
+  switch (command) {
+    case 'generate':
+      return runGenerateCommand(options);
+    case 'check':
+      return runCheckCommand(options);
+    case 'graph':
+      return runGraphCommand(options);
+    case 'doctor':
+      return runDoctorCommand(options);
+    case 'help':
+    case '--help':
+    case '-h':
+    case undefined:
+      printHelp();
+      return undefined;
+    default:
+      printLine({ kind: 'error', message: `Unknown command: ${command}` });
+      printHelp();
+      return { exitCode: 1, lines: [] };
+  }
 }
 
-function parseOptions(args: string[]): CliOptions {
-  const options: CliOptions = {};
+// MARK: - Private options
+
+function parseOptions(args: string[]): ArchicatCliCommandOptions {
+  const options: { config?: string } = {};
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -105,6 +73,14 @@ function parseOptions(args: string[]): CliOptions {
   return options;
 }
 
+// MARK: - Private output
+
+function printResult(result: ArchicatCliCommandResult): void {
+  for (const line of result.lines) {
+    printLine(line);
+  }
+}
+
 function printHelp(): void {
   console.log([
     'Archicat',
@@ -118,14 +94,19 @@ function printHelp(): void {
   ].join('\n'));
 }
 
-function logSuccess(message: string): void {
-  console.log(`✓ ${message}`);
-}
-
-function logWarn(message: string): void {
-  console.warn(`! ${message}`);
-}
-
-function logError(message: string): void {
-  console.error(`✗ ${message}`);
+function printLine(line: ArchicatCliCommandLine): void {
+  switch (line.kind) {
+    case 'success':
+      console.log(`✓ ${line.message}`);
+      return;
+    case 'warning':
+      console.warn(`! ${line.message}`);
+      return;
+    case 'error':
+      console.error(`✗ ${line.message}`);
+      return;
+    case 'info':
+      console.log(line.message);
+      return;
+  }
 }

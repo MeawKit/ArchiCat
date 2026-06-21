@@ -48,7 +48,7 @@ jobs:
 
       # MARK: - Test Packages
       - name: Test packages
-        run: node --test --test-concurrency=1 tests/*.test.mjs
+        run: pnpm run test
 
       # MARK: - Prepare Package Assets
       - name: Prepare package assets

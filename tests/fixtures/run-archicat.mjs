@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+
 import { cliPath } from './paths.mjs';
 
 export function runArchicat(cwd, command, args = []) {

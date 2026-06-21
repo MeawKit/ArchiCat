@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { loadResolvedArchicatProject } from '@internal/configuration';
+import { loadArchicatBuildContext } from '@internal/build';
 import type { ResolvedArchicatProject } from '@internal/model';
 
 import { resetDirectory } from '@internal/generator/file-writer';
@@ -12,7 +12,7 @@ import { generateTsconfig } from '@internal/generator/generate-tsconfig';
 // MARK: - Public
 
 export async function generate(configFileName?: string): Promise<ResolvedArchicatProject> {
-  const project = await loadResolvedArchicatProject(configFileName);
+  const project = await loadArchicatBuildContext(configFileName);
 
   if (path.resolve(project.outDir) === path.resolve(project.rootDir)) {
     throw new Error('Archicat outDir cannot be the project root.');
