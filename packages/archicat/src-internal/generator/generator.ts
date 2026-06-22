@@ -1,6 +1,7 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
-import { loadArchicatBuildContext } from '@internal/build';
+import { loadArchicatBuildContext } from '@internal/context';
 import type { ResolvedArchicatProject } from '@internal/model';
 
 import { resetDirectory } from '@internal/generator/file-writer';
@@ -18,12 +19,11 @@ export async function generate(configFileName?: string): Promise<ResolvedArchica
     throw new Error('Archicat outDir cannot be the project root.');
   }
 
-  if (path.resolve(project.reportDir) === path.resolve(project.rootDir)) {
-    throw new Error('Archicat reportDir cannot be the project root.');
-  }
-
   resetDirectory(project.outDir);
-  resetDirectory(project.reportDir);
+  fs.mkdirSync(path.join(project.outDir, 'modules'), { recursive: true });
+  fs.mkdirSync(path.join(project.outDir, 'libraries'), { recursive: true });
+  fs.mkdirSync(path.join(project.outDir, 'types'), { recursive: true });
+  fs.mkdirSync(project.reportsDir, { recursive: true });
   generateMirrors(project.definitions);
   generateGraphTypes(project);
   generateTsconfig(project);

@@ -11,5 +11,6 @@ export async function runGenerateCommand(options: ArchicatCliCommandOptions): Pr
   return successResult([
     `Mirrored modules: ${project.modules.length}`,
     `Mirrored libraries: ${project.libraries.length}`,
+    `Resolved apps: ${project.apps.length}`,
   ]);
 }

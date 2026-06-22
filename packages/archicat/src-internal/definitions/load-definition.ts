@@ -1,9 +1,10 @@
 import path from 'node:path';
 
-import type { ArchicatLibraryContract, ArchicatModuleContract } from '@/configs';
+import type { ArchicatAppContract, ArchicatLibraryContract, ArchicatModuleContract, ArchicatSurfaceContract } from '@/configs';
 import { createJiti } from 'jiti';
 
 import type {
+  LoadedArchicatApp,
   LoadedArchicatDefinition,
   LoadedArchicatLibrary,
   LoadedArchicatModule,
@@ -11,12 +12,14 @@ import type {
 
 // MARK: - Public
 
-export async function loadArchicatDefinition(filePath: string, kind: 'module' | 'library'): Promise<LoadedArchicatDefinition> {
+export async function loadArchicatDefinition(filePath: string, kind: 'module' | 'library' | 'app'): Promise<LoadedArchicatDefinition> {
   switch (kind) {
     case 'module':
       return loadArchicatModule(filePath);
     case 'library':
       return loadArchicatLibrary(filePath);
+    case 'app':
+      return loadArchicatApp(filePath);
   }
 }
 
@@ -44,6 +47,18 @@ export async function loadArchicatLibrary(filePath: string): Promise<LoadedArchi
   };
 }
 
+export async function loadArchicatApp(filePath: string): Promise<LoadedArchicatApp> {
+  const contract = await importDefault<ArchicatAppContract>(filePath, path.dirname(filePath));
+  assertArchicatDefinition(contract, filePath, 'app');
+
+  return {
+    kind: 'app',
+    contractFilePath: filePath,
+    definitionDir: path.dirname(filePath),
+    contract,
+  };
+}
+
 // MARK: - Private import
 
 async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
@@ -61,30 +76,50 @@ async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
 function assertArchicatDefinition(
   input: unknown,
   filePath: string,
-  expectedKind: 'module' | 'library',
-): asserts input is ArchicatModuleContract | ArchicatLibraryContract {
+  expectedKind: 'module' | 'library' | 'app',
+): asserts input is ArchicatModuleContract | ArchicatLibraryContract | ArchicatAppContract {
   if (input == null || typeof input !== 'object') {
     throw new Error(`Invalid Archicat ${expectedKind} definition: ${filePath}`);
   }
 
-  const definition = input as Partial<ArchicatModuleContract | ArchicatLibraryContract>;
+  const definition = input as Partial<ArchicatModuleContract | ArchicatLibraryContract | ArchicatAppContract>;
 
   if (definition.kind !== expectedKind) {
     throw new Error(`Archicat ${expectedKind} file must export define${capitalize(expectedKind)}(...): ${filePath}`);
   }
 
-  if (typeof definition.id !== 'string' || definition.id.trim() === '') {
-    throw new Error(`Archicat ${expectedKind} must define a non-empty id: ${filePath}`);
+  if (typeof definition.name !== 'string' || definition.name.trim() === '') {
+    throw new Error(`Archicat ${expectedKind} must define a non-empty name: ${filePath}`);
   }
 
-  assertOptionalNonEmptyString(definition.api, 'api', filePath);
-
-  if (expectedKind === 'module') {
-    assertOptionalNonEmptyString((definition as Partial<ArchicatModuleContract>).impl, 'impl', filePath);
+  if (expectedKind === 'app') {
+    assertOptionalNonEmptyString((definition as Partial<ArchicatAppContract>).root, 'root', filePath);
+    assertDependencyArray((definition as Partial<ArchicatAppContract>).dependencies, filePath, expectedKind);
+    return;
   }
 
-  if (!Array.isArray(definition.dependencies)) {
-    throw new Error(`Archicat ${expectedKind} dependencies must be an array: ${filePath}`);
+  const surfaced = definition as Partial<ArchicatModuleContract | ArchicatLibraryContract>;
+  assertSurface(surfaced.api, 'api', filePath, expectedKind);
+  assertSurface(surfaced.impl, 'impl', filePath, expectedKind);
+}
+
+function assertSurface(
+  surface: ArchicatSurfaceContract<string> | undefined,
+  surfaceName: 'api' | 'impl',
+  filePath: string,
+  definitionKind: string,
+): void {
+  if (surface == null || typeof surface !== 'object') {
+    throw new Error(`Archicat ${definitionKind}.${surfaceName} must be a surface object: ${filePath}`);
+  }
+
+  assertOptionalNonEmptyString(surface.root, `${surfaceName}.root`, filePath);
+  assertDependencyArray(surface.dependencies, filePath, `${definitionKind}.${surfaceName}`);
+}
+
+function assertDependencyArray(value: unknown, filePath: string, owner: string): void {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
+    throw new Error(`Archicat ${owner} dependencies must be an array of non-empty strings: ${filePath}`);
   }
 }
 

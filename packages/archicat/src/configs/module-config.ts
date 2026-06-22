@@ -1,31 +1,26 @@
-import type { ArchicatDependency } from './archicat-project-graph.js';
+import type { ArchicatModuleApiDependency, ArchicatModuleImplDependency } from './archicat-project-graph.js';
+import type { ArchicatSurfaceContract, ArchicatSurfaceInput } from './surface-config.js';
 
 /**
  * @description User-facing module definition input.
  */
 export interface ArchicatModuleInput {
   /**
-   * @description Stable module id used in the Archicat project graph.
+   * @description Stable module name used in the Archicat project graph.
    */
-  readonly id: string;
+  readonly name: string;
 
   /**
-   * @description Module public API root, relative to the module definition file.
+   * @description Module public API surface.
    * @default Generates an empty public API mirror.
    */
-  readonly api?: string;
+  readonly api?: ArchicatSurfaceInput<ArchicatModuleApiDependency>;
 
   /**
-   * @description Module implementation root, relative to the module definition file.
+   * @description Module implementation surface.
    * @default Generates a no-op implementation mirror.
    */
-  readonly impl?: string;
-
-  /**
-   * @description Public graph dependencies this module may import.
-   * @default []
-   */
-  readonly dependencies?: readonly ArchicatDependency[];
+  readonly impl?: ArchicatSurfaceInput<ArchicatModuleImplDependency>;
 }
 
 /**
@@ -33,8 +28,7 @@ export interface ArchicatModuleInput {
  */
 export type ArchicatModuleContract = Readonly<{
   readonly kind: 'module';
-  readonly id: string;
-  readonly api?: string;
-  readonly impl?: string;
-  readonly dependencies: readonly ArchicatDependency[];
+  readonly name: string;
+  readonly api: ArchicatSurfaceContract<ArchicatModuleApiDependency>;
+  readonly impl: ArchicatSurfaceContract<ArchicatModuleImplDependency>;
 }>;

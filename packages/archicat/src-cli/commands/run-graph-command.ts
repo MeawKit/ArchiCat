@@ -1,4 +1,4 @@
-import { loadArchicatBuildContext } from '@internal/build';
+import { loadArchicatBuildContext } from '@internal/context';
 import { formatProjectGraph } from '@internal/graph';
 
 import type { ArchicatCliCommandOptions, ArchicatCliCommandResult } from './command-result.js';

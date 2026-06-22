@@ -23,14 +23,14 @@ export async function loadArchicatConfig(configFileName = 'archicat.config.ts'):
   const resolvedConfig = resolveConfig(config);
   const rootDir = path.resolve(cwd, resolvedConfig.root);
   const outDir = path.resolve(rootDir, resolvedConfig.outDir);
-  const reportDir = path.resolve(rootDir, resolvedConfig.reportDir);
+  const reportsDir = path.resolve(outDir, 'reports');
   const tsconfigPath = resolveTsconfigPath(rootDir, resolvedConfig.tsconfig);
 
   return {
     configFilePath,
     rootDir,
     outDir,
-    reportDir,
+    reportsDir,
     ...(tsconfigPath ? { tsconfigPath } : {}),
     config,
     resolvedConfig,
@@ -55,7 +55,7 @@ function resolveConfig(config: ArchicatConfig): ResolvedArchicatConfig {
   return {
     root: config.root ?? ArchicatDefaults.root,
     outDir: config.outDir ?? ArchicatDefaults.outDir,
-    reportDir: config.reportDir ?? ArchicatDefaults.reportDir,
+    alias: { ...ArchicatDefaults.alias, ...(config.alias ?? {}) },
     ...(config.tsconfig === undefined ? {} : { tsconfig: config.tsconfig }),
     prefixes: {
       module: config.prefixes?.module ?? ArchicatDefaults.prefixes.module,
@@ -66,6 +66,9 @@ function resolveConfig(config: ArchicatConfig): ResolvedArchicatConfig {
     },
     libraries: {
       include: [...(config.libraries?.include ?? ArchicatDefaults.libraries.include)],
+    },
+    apps: {
+      include: [...(config.apps?.include ?? ArchicatDefaults.apps.include)],
     },
   };
 }
@@ -96,11 +99,12 @@ function assertArchicatConfig(input: unknown, filePath: string): asserts input i
 
   assertOptionalNonEmptyString(config.root, 'root', filePath);
   assertOptionalNonEmptyString(config.outDir, 'outDir', filePath);
-  assertOptionalNonEmptyString(config.reportDir, 'reportDir', filePath);
   assertOptionalNonEmptyString(config.tsconfig, 'tsconfig', filePath);
 
   assertOptionalInclude(config.modules?.include, 'modules.include', filePath);
   assertOptionalInclude(config.libraries?.include, 'libraries.include', filePath);
+  assertOptionalInclude(config.apps?.include, 'apps.include', filePath);
+  assertOptionalAlias(config.alias, 'alias', filePath);
 
   assertOptionalPrefix(config.prefixes?.module, 'prefixes.module', filePath);
   assertOptionalPrefix(config.prefixes?.library, 'prefixes.library', filePath);
@@ -125,5 +129,21 @@ function assertOptionalPrefix(value: unknown, key: string, filePath: string): vo
 
   if (typeof value !== 'string' || value.trim() === '' || value.includes('*') || value.endsWith('/')) {
     throw new Error(`Archicat config ${key} must be a non-empty prefix without wildcard or trailing slash: ${filePath}`);
+  }
+}
+
+function assertOptionalAlias(value: unknown, key: string, filePath: string): void {
+  if (value === undefined) {
+    return;
+  }
+
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Archicat config ${key} must be an object of non-empty string aliases: ${filePath}`);
+  }
+
+  for (const [alias, target] of Object.entries(value)) {
+    if (alias.trim() === '' || typeof target !== 'string' || target.trim() === '') {
+      throw new Error(`Archicat config ${key} must contain non-empty string aliases: ${filePath}`);
+    }
   }
 }

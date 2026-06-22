@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import ts from 'typescript';
+
 import type { ResolvedArchicatProject } from '@internal/model';
 import { normalizePath } from '@internal/path';
 
@@ -11,15 +13,21 @@ import { writeJsonFile } from '@internal/generator/file-writer';
 export function generateTsconfig(project: ResolvedArchicatProject): void {
   const userTsconfig = project.tsconfigPath ? readUserTsconfig(project.tsconfigPath) : {};
   const userCompilerOptions = readCompilerOptions(userTsconfig);
-  const userPaths = readPaths(userCompilerOptions);
+  const userPaths = readPaths(userCompilerOptions, project.tsconfigPath);
+
+  if (Object.keys(userPaths).length > 0) {
+    throw new Error('Root tsconfig compilerOptions.paths is not supported by Archicat. Move aliases into archicat.config.ts alias.');
+  }
+
+  const userAliasPaths = rewriteConfiguredAliases(project);
   const archicatPaths = makeArchicatPaths(project);
 
-  assertNoAliasConflicts(project, userPaths, archicatPaths);
+  assertNoAliasConflicts(project, userAliasPaths, archicatPaths);
 
   const compilerOptions = {
     ...rewriteCompilerPathOptions(project, omit(userCompilerOptions, ['baseUrl', 'paths'])),
     paths: {
-      ...rewriteUserPaths(project, userPaths),
+      ...userAliasPaths,
       ...archicatPaths,
     },
   };
@@ -33,22 +41,51 @@ export function generateTsconfig(project: ResolvedArchicatProject): void {
   writeJsonFile(path.join(project.outDir, 'tsconfig.json'), tsconfig);
 }
 
-// MARK: - Private
+// MARK: - Private paths
 
 function makeArchicatPaths(project: ResolvedArchicatProject): Record<string, string[]> {
   const paths: Record<string, string[]> = {};
+  const includeImplementationAliases = project.apps.length > 0;
 
   for (const definition of project.definitions) {
-    paths[definition.alias] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.mirrorApiRootPath, 'index.ts'))];
-    paths[definition.aliasGlob] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.mirrorApiRootPath, '*'))];
+    paths[definition.alias] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.api.mirrorRootPath, 'index.ts'))];
+    paths[definition.aliasGlob] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.api.mirrorRootPath, '*'))];
+
+    if (includeImplementationAliases && definition.implAlias && definition.implAliasGlob) {
+      paths[definition.implAlias] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.impl.mirrorRootPath, 'index.ts'))];
+      paths[definition.implAliasGlob] = [makeRelativeTsconfigPath(project.outDir, path.join(definition.impl.mirrorRootPath, '*'))];
+    }
   }
 
   return paths;
 }
 
+function rewriteConfiguredAliases(project: ResolvedArchicatProject): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  for (const [alias, target] of Object.entries(project.config.alias)) {
+    const absolute = path.isAbsolute(target) ? target : path.resolve(project.rootDir, target);
+    result[alias] = [makeRelativeTsconfigPath(project.outDir, absolute)];
+  }
+
+  return result;
+}
+
+// MARK: - Private read
+
 function readUserTsconfig(tsconfigPath: string): Record<string, unknown> {
   const raw = fs.readFileSync(tsconfigPath, 'utf8');
-  return JSON.parse(stripJsonComments(raw)) as Record<string, unknown>;
+  const parsed = ts.parseConfigFileTextToJson(tsconfigPath, raw);
+
+  if (parsed.error) {
+    throw new Error(formatTsDiagnostic(parsed.error));
+  }
+
+  if (parsed.config == null || typeof parsed.config !== 'object' || Array.isArray(parsed.config)) {
+    throw new Error(`Invalid tsconfig object: ${tsconfigPath}`);
+  }
+
+  return parsed.config as Record<string, unknown>;
 }
 
 function readCompilerOptions(tsconfig: Record<string, unknown>): Record<string, unknown> {
@@ -58,7 +95,7 @@ function readCompilerOptions(tsconfig: Record<string, unknown>): Record<string, 
     : {};
 }
 
-function readPaths(compilerOptions: Record<string, unknown>): Record<string, string[]> {
+function readPaths(compilerOptions: Record<string, unknown>, tsconfigPath: string | undefined): Record<string, string[]> {
   const paths = compilerOptions.paths;
 
   if (!paths || typeof paths !== 'object' || Array.isArray(paths)) {
@@ -69,7 +106,7 @@ function readPaths(compilerOptions: Record<string, unknown>): Record<string, str
 
   for (const [key, value] of Object.entries(paths)) {
     if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
-      throw new Error(`Tsconfig paths.${key} must be an array of strings.`);
+      throw new Error(`Tsconfig paths.${key} must be an array of strings${tsconfigPath ? `: ${tsconfigPath}` : ''}.`);
     }
 
     result[key] = [...value];
@@ -78,29 +115,7 @@ function readPaths(compilerOptions: Record<string, unknown>): Record<string, str
   return result;
 }
 
-function rewriteUserPaths(project: ResolvedArchicatProject, userPaths: Record<string, string[]>): Record<string, string[]> {
-  if (!project.tsconfigPath) {
-    return userPaths;
-  }
-
-  const tsconfigDir = path.dirname(project.tsconfigPath);
-  const rewritten: Record<string, string[]> = {};
-
-  for (const [alias, values] of Object.entries(userPaths)) {
-    rewritten[alias] = values.map((value) => rewriteUserPathValue(project.outDir, tsconfigDir, value));
-  }
-
-  return rewritten;
-}
-
-function rewriteUserPathValue(outDir: string, tsconfigDir: string, value: string): string {
-  if (path.isAbsolute(value)) {
-    return makeRelativeTsconfigPath(outDir, value);
-  }
-
-  const absolute = path.resolve(tsconfigDir, value);
-  return makeRelativeTsconfigPath(outDir, absolute);
-}
+// MARK: - Private rewrite
 
 function rewriteCompilerPathOptions(
   project: ResolvedArchicatProject,
@@ -135,34 +150,41 @@ function makeRelativeTsconfigPath(fromDir: string, targetPath: string): string {
   return relative;
 }
 
+// MARK: - Private validate
+
 function assertNoAliasConflicts(
   project: ResolvedArchicatProject,
-  userPaths: Record<string, string[]>,
+  userAliases: Record<string, string[]>,
   archicatPaths: Record<string, string[]>,
 ): void {
-  const userAliases = Object.keys(userPaths);
+  const configuredAliases = Object.keys(userAliases);
   const archicatAliases = Object.keys(archicatPaths);
   const reservedPrefixes = Object.values(project.config.prefixes);
 
-  for (const userAlias of userAliases) {
-    if (archicatAliases.includes(userAlias)) {
-      throw new Error(`Tsconfig alias conflict: user tsconfig already defines "${userAlias}", but Archicat needs it.`);
+  for (const alias of configuredAliases) {
+    if (archicatAliases.includes(alias)) {
+      throw new Error(`Alias conflict: archicat.config.ts alias already defines "${alias}", but Archicat needs it.`);
     }
 
     for (const prefix of reservedPrefixes) {
-      if (userAlias === prefix || userAlias === `${prefix}/*` || userAlias.startsWith(`${prefix}/`)) {
+      if (alias === prefix || alias === `${prefix}/*` || alias.startsWith(`${prefix}/`)) {
         throw new Error(
-          `Tsconfig alias conflict: user tsconfig already defines "${userAlias}" inside Archicat reserved prefix "${prefix}". Remove the alias or configure another Archicat prefix.`,
+          `Alias conflict: archicat.config.ts alias "${alias}" is inside Archicat reserved prefix "${prefix}". Remove the alias or configure another Archicat prefix.`,
         );
       }
     }
   }
 }
 
-function stripJsonComments(input: string): string {
-  return input
-    .replace(/\/\*[\s\S]*?\*\//gu, '')
-    .replace(/(^|[^:])\/\/.*$/gmu, '$1');
+function formatTsDiagnostic(diagnostic: ts.Diagnostic): string {
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+
+  if (diagnostic.file && diagnostic.start !== undefined) {
+    const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+    return `${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1} - ${message}`;
+  }
+
+  return message;
 }
 
 function omit<T extends Record<string, unknown>, Key extends keyof T>(input: T, keys: readonly Key[]): Omit<T, Key> {

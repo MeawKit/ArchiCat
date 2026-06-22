@@ -1,8 +1,10 @@
 import path from 'node:path';
 
-import { loadArchicatBuildContext } from '@internal/build';
+import { loadArchicatBuildContext } from '@internal/context';
 import type {
+  ArchicatSurface,
   ArchicatViolation,
+  ResolvedArchicatApp,
   ResolvedArchicatDefinition,
   ResolvedArchicatProject,
 } from '@internal/model';
@@ -16,14 +18,42 @@ export async function validate(configFileName?: string): Promise<ArchicatViolati
   return validateImports(project);
 }
 
-// MARK: - Private
+// MARK: - Private model
+
+type SourceOwner =
+  | {
+      kind: 'module' | 'library';
+      name: string;
+      surface: ArchicatSurface;
+      target: string;
+      definition: ResolvedArchicatDefinition;
+    }
+  | {
+      kind: 'app';
+      name: string;
+      surface: 'app';
+      target: string;
+      app: ResolvedArchicatApp;
+    };
+
+interface AliasTarget {
+  kind: 'module' | 'library';
+  name: string;
+  surface: ArchicatSurface;
+  target: string;
+}
+
+// MARK: - Private validate
 
 function validateImports(project: ResolvedArchicatProject): ArchicatViolation[] {
   const violations: ArchicatViolation[] = [];
-  const sourceFiles = project.definitions.flatMap((definition) => getDefinitionSourceFiles(definition));
+  const sourceFiles = [
+    ...project.definitions.flatMap((definition) => getDefinitionSourceFiles(definition)),
+    ...project.apps.flatMap((app) => listTypeScriptFiles(app.rootPath)),
+  ];
 
   for (const filePath of sourceFiles) {
-    const owner = findOwnerDefinition(project.definitions, filePath);
+    const owner = findOwner(project, filePath);
 
     if (!owner) {
       continue;
@@ -42,35 +72,40 @@ function validateImports(project: ResolvedArchicatProject): ArchicatViolation[] 
 }
 
 function getDefinitionSourceFiles(definition: ResolvedArchicatDefinition): string[] {
-  if (definition.kind === 'module') {
-    return [
-      ...(definition.apiRootPath ? listTypeScriptFiles(definition.apiRootPath) : []),
-      ...(definition.implRootPath ? listTypeScriptFiles(definition.implRootPath) : []),
-    ];
-  }
-
-  return definition.apiRootPath ? listTypeScriptFiles(definition.apiRootPath) : [];
+  return [
+    ...(definition.api.rootPath ? listTypeScriptFiles(definition.api.rootPath) : []),
+    ...(definition.impl.rootPath ? listTypeScriptFiles(definition.impl.rootPath) : []),
+  ];
 }
 
 function validateImport(
   project: ResolvedArchicatProject,
-  owner: ResolvedArchicatDefinition,
+  owner: SourceOwner,
   filePath: string,
   importPath: string,
 ): ArchicatViolation | undefined {
-  const targetAlias = resolvePublicAlias(project, importPath);
+  const targetAlias = resolveAlias(project, importPath);
 
   if (targetAlias) {
-    if (targetAlias.kind === owner.kind && targetAlias.id === owner.id) {
+    if (isOwnApiImport(owner, targetAlias)) {
       return undefined;
     }
 
-    if (!owner.dependencies.includes(targetAlias.target)) {
+    if (targetAlias.surface === 'impl' && owner.kind !== 'app') {
       return makeViolation(
         project,
         filePath,
         importPath,
-        `${capitalize(owner.kind)} "${owner.id}" imports "${targetAlias.target}" but does not declare it in dependencies.`,
+        `${formatOwner(owner)} cannot import implementation target "${targetAlias.target}". Implementation imports are allowed only from app composition roots.`,
+      );
+    }
+
+    if (!canReach(project, owner.target, targetAlias.target)) {
+      return makeViolation(
+        project,
+        filePath,
+        importPath,
+        `${formatOwner(owner)} imports "${targetAlias.target}" but does not declare a dependency that allows it.`,
       );
     }
 
@@ -86,14 +121,14 @@ function validateImport(
 
 function validateRelativeImport(
   project: ResolvedArchicatProject,
-  owner: ResolvedArchicatDefinition,
+  owner: SourceOwner,
   filePath: string,
   importPath: string,
 ): ArchicatViolation | undefined {
   const targetPath = resolveImportPath(filePath, importPath);
-  const targetOwner = findOwnerDefinition(project.definitions, targetPath);
+  const targetOwner = findOwner(project, targetPath);
 
-  if (!targetOwner || (targetOwner.kind === owner.kind && targetOwner.id === owner.id)) {
+  if (!targetOwner || isSameDefinition(owner, targetOwner)) {
     return undefined;
   }
 
@@ -101,43 +136,78 @@ function validateRelativeImport(
     project,
     filePath,
     importPath,
-    `${capitalize(owner.kind)} "${owner.id}" imports ${targetOwner.kind} "${targetOwner.id}" through a source path. Use "${targetOwner.alias}" instead.`,
+    `${formatOwner(owner)} imports ${formatOwner(targetOwner)} through a source path. Use an Archicat alias instead.`,
   );
+}
+
+// MARK: - Private owner
+
+function findOwner(project: ResolvedArchicatProject, filePath: string): SourceOwner | undefined {
+  const extensionless = stripKnownExtension(filePath);
+
+  for (const definition of project.definitions) {
+    if (definition.api.rootPath && isPathInside(extensionless, stripKnownExtension(definition.api.rootPath))) {
+      return {
+        kind: definition.kind,
+        name: definition.name,
+        surface: 'api',
+        target: definition.apiTarget,
+        definition,
+      };
+    }
+
+    if (definition.impl.rootPath && isPathInside(extensionless, stripKnownExtension(definition.impl.rootPath))) {
+      return {
+        kind: definition.kind,
+        name: definition.name,
+        surface: 'impl',
+        target: definition.implTarget,
+        definition,
+      };
+    }
+  }
+
+  for (const app of project.apps) {
+    if (isPathInside(extensionless, stripKnownExtension(app.rootPath))) {
+      return {
+        kind: 'app',
+        name: app.name,
+        surface: 'app',
+        target: app.target,
+        app,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 function resolveImportPath(filePath: string, importPath: string): string {
   return stripKnownExtension(importPath.startsWith('/') ? importPath : path.resolve(path.dirname(filePath), importPath));
 }
 
-function findOwnerDefinition(
-  definitions: readonly ResolvedArchicatDefinition[],
-  filePath: string,
-): ResolvedArchicatDefinition | undefined {
-  const extensionless = stripKnownExtension(filePath);
-
-  return definitions.find((definition) => {
-    const roots = getDefinitionRoots(definition).filter((root): root is string => !!root);
-    return roots.some((root) => isPathInside(extensionless, stripKnownExtension(root)));
-  });
+function isSameDefinition(left: SourceOwner, right: SourceOwner): boolean {
+  return left.kind === right.kind && left.name === right.name;
 }
 
-function getDefinitionRoots(definition: ResolvedArchicatDefinition): Array<string | undefined> {
-  if (definition.kind === 'module') {
-    return [definition.apiRootPath, definition.implRootPath, definition.definitionDir];
-  }
+// MARK: - Private aliases
 
-  return [definition.apiRootPath, definition.definitionDir];
-}
-
-function resolvePublicAlias(
-  project: ResolvedArchicatProject,
-  importPath: string,
-): { kind: 'module' | 'library'; id: string; target: string } | undefined {
+function resolveAlias(project: ResolvedArchicatProject, importPath: string): AliasTarget | undefined {
   for (const definition of project.definitions) {
+    if (definition.implAlias && (importPath === definition.implAlias || importPath.startsWith(`${definition.implAlias}/`))) {
+      return {
+        kind: definition.kind,
+        name: definition.name,
+        surface: 'impl',
+        target: definition.implTarget,
+      };
+    }
+
     if (importPath === definition.alias || importPath.startsWith(`${definition.alias}/`)) {
       return {
         kind: definition.kind,
-        id: definition.id,
+        name: definition.name,
+        surface: 'api',
         target: definition.apiTarget,
       };
     }
@@ -145,6 +215,39 @@ function resolvePublicAlias(
 
   return undefined;
 }
+
+function isOwnApiImport(owner: SourceOwner, target: AliasTarget): boolean {
+  return owner.kind === target.kind && owner.name === target.name && target.surface === 'api';
+}
+
+// MARK: - Private graph
+
+function canReach(project: ResolvedArchicatProject, from: string, to: string): boolean {
+  const visited = new Set<string>();
+  const queue = [from];
+
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+
+    if (current === to) {
+      return true;
+    }
+
+    if (visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    for (const dependency of project.graph.dependencies.filter((candidate) => candidate.from === current)) {
+      queue.push(dependency.to);
+    }
+  }
+
+  return false;
+}
+
+// MARK: - Private format
 
 function makeViolation(
   project: ResolvedArchicatProject,
@@ -157,6 +260,14 @@ function makeViolation(
     importPath,
     message,
   };
+}
+
+function formatOwner(owner: SourceOwner): string {
+  if (owner.kind === 'app') {
+    return `App "${owner.name}"`;
+  }
+
+  return `${capitalize(owner.kind)} "${owner.name}" ${owner.surface}`;
 }
 
 function capitalize(value: string): string {

@@ -175,5 +175,4 @@ out/
 **/__generated__/
 
 .archicat/
-archicat-report/
-tests/.tmp/
+.tmp/

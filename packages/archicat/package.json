@@ -1,6 +1,6 @@
 {
   "name": "archicat",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "M²: modular mirroring for clean architecture.",
   "keywords": [
     "m2",

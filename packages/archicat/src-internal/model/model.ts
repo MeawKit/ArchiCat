@@ -1,12 +1,12 @@
-import type { ArchicatConfig, ArchicatLibraryContract, ArchicatModuleContract } from '@/configs';
+import type { ArchicatAppContract, ArchicatConfig, ArchicatLibraryContract, ArchicatModuleContract } from '@/configs';
 
 // MARK: - Public configuration model
 
 export interface ResolvedArchicatConfig {
   root: string;
   outDir: string;
-  reportDir: string;
   tsconfig?: string;
+  alias: Record<string, string>;
   prefixes: {
     module: string;
     library: string;
@@ -17,13 +17,16 @@ export interface ResolvedArchicatConfig {
   libraries: {
     include: string[];
   };
+  apps: {
+    include: string[];
+  };
 }
 
 export interface LoadedArchicatConfig {
   configFilePath: string;
   rootDir: string;
   outDir: string;
-  reportDir: string;
+  reportsDir: string;
   tsconfigPath?: string;
   config: ArchicatConfig;
   resolvedConfig: ResolvedArchicatConfig;
@@ -45,53 +48,79 @@ export interface LoadedArchicatLibrary {
   contract: ArchicatLibraryContract;
 }
 
-export type LoadedArchicatDefinition = LoadedArchicatModule | LoadedArchicatLibrary;
+export interface LoadedArchicatApp {
+  kind: 'app';
+  contractFilePath: string;
+  definitionDir: string;
+  contract: ArchicatAppContract;
+}
+
+export type LoadedArchicatDefinition = LoadedArchicatModule | LoadedArchicatLibrary | LoadedArchicatApp;
 
 // MARK: - Public graph model
 
-export type ArchicatDefinitionKind = 'module' | 'library';
+export type ArchicatDefinitionKind = 'module' | 'library' | 'app';
+export type ArchicatTargetKind = 'module' | 'library';
 export type ArchicatSurface = 'api' | 'impl';
+export type ArchicatDependencyOrigin = 'declared' | 'derived';
 
 export interface ArchicatGraphTarget {
   key: string;
-  kind: ArchicatDefinitionKind;
-  id: string;
+  kind: ArchicatTargetKind;
+  name: string;
   surface: ArchicatSurface;
 }
 
 export interface ArchicatGraphDependency {
   from: string;
   to: string;
-  origin: 'declared' | 'derived';
+  origin: ArchicatDependencyOrigin;
+}
+
+export interface ResolvedArchicatSurface {
+  rootPath?: string;
+  mirrorRootPath: string;
+  dependencies: string[];
 }
 
 export interface ResolvedArchicatModule {
   kind: 'module';
-  id: string;
+  name: string;
   apiTarget: string;
   implTarget: string;
   alias: string;
   aliasGlob: string;
-  dependencies: string[];
+  implAlias?: string;
+  implAliasGlob?: string;
   contractFilePath: string;
   definitionDir: string;
-  apiRootPath?: string;
-  implRootPath?: string;
-  mirrorApiRootPath: string;
-  mirrorImplRootPath: string;
+  api: ResolvedArchicatSurface;
+  impl: ResolvedArchicatSurface;
 }
 
 export interface ResolvedArchicatLibrary {
   kind: 'library';
-  id: string;
+  name: string;
   apiTarget: string;
+  implTarget: string;
   alias: string;
   aliasGlob: string;
-  dependencies: string[];
+  implAlias?: string;
+  implAliasGlob?: string;
   contractFilePath: string;
   definitionDir: string;
-  apiRootPath?: string;
-  mirrorApiRootPath: string;
+  api: ResolvedArchicatSurface;
+  impl: ResolvedArchicatSurface;
+}
+
+export interface ResolvedArchicatApp {
+  kind: 'app';
+  name: string;
+  target: string;
+  contractFilePath: string;
+  definitionDir: string;
+  rootPath: string;
+  dependencies: string[];
 }
 
 export type ResolvedArchicatDefinition = ResolvedArchicatModule | ResolvedArchicatLibrary;
@@ -104,12 +133,13 @@ export interface ArchicatProjectGraph {
 export interface ResolvedArchicatProject {
   rootDir: string;
   outDir: string;
-  reportDir: string;
+  reportsDir: string;
   tsconfigPath?: string;
   configFilePath: string;
   config: ResolvedArchicatConfig;
   modules: ResolvedArchicatModule[];
   libraries: ResolvedArchicatLibrary[];
+  apps: ResolvedArchicatApp[];
   definitions: ResolvedArchicatDefinition[];
   graph: ArchicatProjectGraph;
 }
@@ -121,17 +151,28 @@ export interface ArchicatBuildReport {
     module: string;
     library: string;
   };
+  outputs: {
+    outDir: string;
+    reportsDir: string;
+  };
   targets: string[];
   definitions: Array<{
     kind: ArchicatDefinitionKind;
-    id: string;
+    name: string;
     targets: Record<string, string>;
-    aliases: Record<string, string>;
-    dependencies: string[];
+    aliases: Record<string, string | undefined>;
+    dependencies: Record<string, string[]> | string[];
     contractFilePath: string;
     source: Record<string, string | undefined>;
     mirror: Record<string, string | undefined>;
   }>;
+  dependencies: ArchicatGraphDependency[];
+}
+
+export interface ArchicatGraphReport {
+  generatedBy: 'archicat';
+  schemaVersion: 1;
+  targets: string[];
   dependencies: ArchicatGraphDependency[];
 }
 

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import type { ArchicatBuildReport, ResolvedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
+import type { ArchicatBuildReport, ArchicatGraphReport, ResolvedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
 import { makeRelativeDisplayPath } from '@internal/path';
 
 import { writeJsonFile } from '@internal/generator/file-writer';
@@ -8,7 +8,8 @@ import { writeJsonFile } from '@internal/generator/file-writer';
 // MARK: - Public
 
 export function generateReport(project: ResolvedArchicatProject): void {
-  writeJsonFile(path.join(project.reportDir, 'build.json'), makeBuildReport(project));
+  writeJsonFile(path.join(project.reportsDir, 'build.report.json'), makeBuildReport(project));
+  writeJsonFile(path.join(project.reportsDir, 'graph.report.json'), makeGraphReport(project));
 }
 
 // MARK: - Private
@@ -18,55 +19,66 @@ function makeBuildReport(project: ResolvedArchicatProject): ArchicatBuildReport 
     generatedBy: 'archicat',
     schemaVersion: 1,
     prefixes: project.config.prefixes,
+    outputs: {
+      outDir: makeRelativeDisplayPath(project.rootDir, project.outDir),
+      reportsDir: makeRelativeDisplayPath(project.rootDir, project.reportsDir),
+    },
     targets: project.graph.targets.map((target) => target.key),
-    definitions: project.definitions.map((definition) => makeDefinitionReport(project, definition)),
+    definitions: [
+      ...project.definitions.map((definition) => makeDefinitionReport(project, definition)),
+      ...project.apps.map((app) => ({
+        kind: app.kind,
+        name: app.name,
+        targets: {
+          app: app.target,
+        },
+        aliases: {},
+        dependencies: app.dependencies,
+        contractFilePath: makeRelativeDisplayPath(project.rootDir, app.contractFilePath),
+        source: {
+          root: makeRelativeDisplayPath(project.rootDir, app.rootPath),
+        },
+        mirror: {},
+      })),
+    ],
+    dependencies: project.graph.dependencies,
+  };
+}
+
+function makeGraphReport(project: ResolvedArchicatProject): ArchicatGraphReport {
+  return {
+    generatedBy: 'archicat',
+    schemaVersion: 1,
+    targets: project.graph.targets.map((target) => target.key),
     dependencies: project.graph.dependencies,
   };
 }
 
 function makeDefinitionReport(project: ResolvedArchicatProject, definition: ResolvedArchicatDefinition): ArchicatBuildReport['definitions'][number] {
-  if (definition.kind === 'module') {
-    return {
-      kind: definition.kind,
-      id: definition.id,
-      targets: {
-        api: definition.apiTarget,
-        impl: definition.implTarget,
-      },
-      aliases: {
-        api: definition.alias,
-      },
-      dependencies: definition.dependencies,
-      contractFilePath: makeRelativeDisplayPath(project.rootDir, definition.contractFilePath),
-      source: {
-        root: makeRelativeDisplayPath(project.rootDir, definition.definitionDir),
-        api: definition.apiRootPath ? makeRelativeDisplayPath(project.rootDir, definition.apiRootPath) : undefined,
-        impl: definition.implRootPath ? makeRelativeDisplayPath(project.rootDir, definition.implRootPath) : undefined,
-      },
-      mirror: {
-        api: makeRelativeDisplayPath(project.rootDir, definition.mirrorApiRootPath),
-        impl: makeRelativeDisplayPath(project.rootDir, definition.mirrorImplRootPath),
-      },
-    };
-  }
-
   return {
     kind: definition.kind,
-    id: definition.id,
+    name: definition.name,
     targets: {
       api: definition.apiTarget,
+      impl: definition.implTarget,
     },
     aliases: {
       api: definition.alias,
+      impl: project.apps.length > 0 ? definition.implAlias : undefined,
     },
-    dependencies: definition.dependencies,
+    dependencies: {
+      api: definition.api.dependencies,
+      impl: definition.impl.dependencies,
+    },
     contractFilePath: makeRelativeDisplayPath(project.rootDir, definition.contractFilePath),
     source: {
       root: makeRelativeDisplayPath(project.rootDir, definition.definitionDir),
-      api: definition.apiRootPath ? makeRelativeDisplayPath(project.rootDir, definition.apiRootPath) : undefined,
+      api: definition.api.rootPath ? makeRelativeDisplayPath(project.rootDir, definition.api.rootPath) : undefined,
+      impl: definition.impl.rootPath ? makeRelativeDisplayPath(project.rootDir, definition.impl.rootPath) : undefined,
     },
     mirror: {
-      api: makeRelativeDisplayPath(project.rootDir, definition.mirrorApiRootPath),
+      api: makeRelativeDisplayPath(project.rootDir, definition.api.mirrorRootPath),
+      impl: makeRelativeDisplayPath(project.rootDir, definition.impl.mirrorRootPath),
     },
   };
 }

@@ -7,8 +7,8 @@ export function defineArchicatConfig(config: ArchicatConfigInput = {}): Archicat
   return Object.freeze({
     ...(config.root === undefined ? {} : { root: config.root }),
     ...(config.outDir === undefined ? {} : { outDir: config.outDir }),
-    ...(config.reportDir === undefined ? {} : { reportDir: config.reportDir }),
     ...(config.tsconfig === undefined ? {} : { tsconfig: config.tsconfig }),
+    ...(config.alias === undefined ? {} : { alias: Object.freeze({ ...config.alias }) }),
     ...(config.prefixes === undefined
       ? {}
       : {
@@ -33,6 +33,15 @@ export function defineArchicatConfig(config: ArchicatConfigInput = {}): Archicat
             ...(config.libraries.include === undefined
               ? {}
               : { include: Object.freeze([...config.libraries.include]) }),
+          }),
+        }),
+    ...(config.apps === undefined
+      ? {}
+      : {
+          apps: Object.freeze({
+            ...(config.apps.include === undefined
+              ? {}
+              : { include: Object.freeze([...config.apps.include]) }),
           }),
         }),
   });

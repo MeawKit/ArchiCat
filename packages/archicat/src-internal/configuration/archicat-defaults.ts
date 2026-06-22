@@ -3,7 +3,7 @@
 export const ArchicatDefaults = Object.freeze({
   root: '.',
   outDir: '.archicat',
-  reportDir: 'archicat-report',
+  alias: Object.freeze({}),
   prefixes: Object.freeze({
     module: '@module',
     library: '@library',
@@ -12,6 +12,9 @@ export const ArchicatDefaults = Object.freeze({
     include: Object.freeze(['./src/modules'] as const),
   }),
   libraries: Object.freeze({
+    include: Object.freeze([] as const),
+  }),
+  apps: Object.freeze({
     include: Object.freeze([] as const),
   }),
 });

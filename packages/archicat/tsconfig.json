@@ -6,9 +6,6 @@
     "outDir": "./dist",
     "declarationDir": "./dist/types",
 
-    /* Runtime types */
-    "types": ["node"],
-
     /* Project paths */
     "paths": {
       "@/*": ["./src/*"],

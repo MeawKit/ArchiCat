@@ -17,14 +17,20 @@ export async function loadArchicatBuildContext(configFileName?: string): Promise
     loadedConfig.resolvedConfig.libraries.include,
     'archicat.library.ts',
   );
+  const appFiles = discoverDefinitionFiles(
+    loadedConfig.rootDir,
+    loadedConfig.resolvedConfig.apps.include,
+    'archicat.app.ts',
+  );
 
-  if (moduleFiles.length === 0) {
-    throw new Error('No Archicat module definitions matched modules.include.');
+  if (moduleFiles.length === 0 && libraryFiles.length === 0 && appFiles.length === 0) {
+    throw new Error('No Archicat definition files matched configured include roots.');
   }
 
   const loadedDefinitions: LoadedArchicatDefinition[] = [
     ...(await Promise.all(moduleFiles.map((file) => loadArchicatDefinition(file, 'module')))),
     ...(await Promise.all(libraryFiles.map((file) => loadArchicatDefinition(file, 'library')))),
+    ...(await Promise.all(appFiles.map((file) => loadArchicatDefinition(file, 'app')))),
   ];
 
   return resolveArchicatProject(loadedConfig, loadedDefinitions);

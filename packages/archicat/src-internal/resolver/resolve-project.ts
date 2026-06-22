@@ -1,17 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { assertNoDependencyCycles, validateDeclaredDependency } from '@internal/dependency-graph';
+import type { DependencyOwner } from '@internal/dependency-graph';
 import type {
   ArchicatGraphDependency,
   ArchicatGraphTarget,
+  LoadedArchicatApp,
   LoadedArchicatConfig,
   LoadedArchicatDefinition,
   LoadedArchicatLibrary,
   LoadedArchicatModule,
+  ResolvedArchicatApp,
   ResolvedArchicatDefinition,
   ResolvedArchicatLibrary,
   ResolvedArchicatModule,
   ResolvedArchicatProject,
+  ResolvedArchicatSurface,
 } from '@internal/model';
 
 // MARK: - Public
@@ -26,22 +31,26 @@ export function resolveArchicatProject(
   const libraries = loadedDefinitions
     .filter((definition): definition is LoadedArchicatLibrary => definition.kind === 'library')
     .map((definition) => resolveLibrary(loadedConfig, definition));
+  const apps = loadedDefinitions
+    .filter((definition): definition is LoadedArchicatApp => definition.kind === 'app')
+    .map((definition) => resolveApp(definition));
   const definitions: ResolvedArchicatDefinition[] = [...modules, ...libraries];
 
-  assertUniqueDefinitionIds(definitions);
-  const graph = buildGraph(definitions);
-  assertDependencyReferences(definitions, graph.targets);
-  assertNoDependencyCycles(definitions);
+  assertUniqueDefinitionNames([...definitions, ...apps]);
+  const graph = buildGraph(definitions, apps);
+  assertDependencyReferences(definitions, apps, graph.targets);
+  assertNoDependencyCycles(graph.dependencies);
 
   return {
     rootDir: loadedConfig.rootDir,
     outDir: loadedConfig.outDir,
-    reportDir: loadedConfig.reportDir,
+    reportsDir: loadedConfig.reportsDir,
     ...(loadedConfig.tsconfigPath ? { tsconfigPath: loadedConfig.tsconfigPath } : {}),
     configFilePath: loadedConfig.configFilePath,
     config: loadedConfig.resolvedConfig,
     modules,
     libraries,
+    apps,
     definitions,
     graph,
   };
@@ -52,61 +61,86 @@ export function resolveArchicatProject(
 function resolveModule(loadedConfig: LoadedArchicatConfig, loadedModule: LoadedArchicatModule): ResolvedArchicatModule {
   const { contract, contractFilePath, definitionDir } = loadedModule;
 
-  assertValidId(contract.id, contractFilePath, 'module');
+  assertValidName(contract.name, contractFilePath, 'module');
 
-  const apiRootPath = contract.api ? resolveDeclaredRoot(definitionDir, contract.api, 'api', contract.id) : undefined;
-  const implRootPath = contract.impl ? resolveDeclaredRoot(definitionDir, contract.impl, 'impl', contract.id) : undefined;
-
-  const alias = `${loadedConfig.resolvedConfig.prefixes.module}/${contract.id}`;
+  const apiRootPath = contract.api.root ? resolveDeclaredRoot(definitionDir, contract.api.root, 'api', contract.name) : undefined;
+  const implRootPath = contract.impl.root ? resolveDeclaredRoot(definitionDir, contract.impl.root, 'impl', contract.name) : undefined;
+  const alias = `${loadedConfig.resolvedConfig.prefixes.module}/${contract.name}`;
 
   return {
     kind: 'module',
-    id: contract.id,
-    apiTarget: `module.${contract.id}.api`,
-    implTarget: `module.${contract.id}.impl`,
+    name: contract.name,
+    apiTarget: `module.${contract.name}.api`,
+    implTarget: `module.${contract.name}.impl`,
     alias,
     aliasGlob: `${alias}/*`,
-    dependencies: [...contract.dependencies],
+    implAlias: `${alias}/impl`,
+    implAliasGlob: `${alias}/impl/*`,
     contractFilePath,
     definitionDir,
-    apiRootPath,
-    implRootPath,
-    mirrorApiRootPath: path.join(loadedConfig.outDir, 'modules', contract.id, 'api'),
-    mirrorImplRootPath: path.join(loadedConfig.outDir, 'modules', contract.id, 'impl'),
+    api: resolveSurface(apiRootPath, contract.api.dependencies, path.join(loadedConfig.outDir, 'modules', contract.name, 'api')),
+    impl: resolveSurface(implRootPath, contract.impl.dependencies, path.join(loadedConfig.outDir, 'modules', contract.name, 'impl')),
   };
 }
 
 function resolveLibrary(loadedConfig: LoadedArchicatConfig, loadedLibrary: LoadedArchicatLibrary): ResolvedArchicatLibrary {
   const { contract, contractFilePath, definitionDir } = loadedLibrary;
 
-  assertValidId(contract.id, contractFilePath, 'library');
+  assertValidName(contract.name, contractFilePath, 'library');
 
-  const apiRootPath = contract.api ? resolveDeclaredRoot(definitionDir, contract.api, 'api', contract.id) : undefined;
-  const alias = `${loadedConfig.resolvedConfig.prefixes.library}/${contract.id}`;
+  const apiRootPath = contract.api.root ? resolveDeclaredRoot(definitionDir, contract.api.root, 'api', contract.name) : undefined;
+  const implRootPath = contract.impl.root ? resolveDeclaredRoot(definitionDir, contract.impl.root, 'impl', contract.name) : undefined;
+  const alias = `${loadedConfig.resolvedConfig.prefixes.library}/${contract.name}`;
 
   return {
     kind: 'library',
-    id: contract.id,
-    apiTarget: `library.${contract.id}.api`,
+    name: contract.name,
+    apiTarget: `library.${contract.name}.api`,
+    implTarget: `library.${contract.name}.impl`,
     alias,
     aliasGlob: `${alias}/*`,
-    dependencies: [...contract.dependencies],
+    implAlias: `${alias}/impl`,
+    implAliasGlob: `${alias}/impl/*`,
     contractFilePath,
     definitionDir,
-    apiRootPath,
-    mirrorApiRootPath: path.join(loadedConfig.outDir, 'libraries', contract.id, 'api'),
+    api: resolveSurface(apiRootPath, contract.api.dependencies, path.join(loadedConfig.outDir, 'libraries', contract.name, 'api')),
+    impl: resolveSurface(implRootPath, contract.impl.dependencies, path.join(loadedConfig.outDir, 'libraries', contract.name, 'impl')),
   };
 }
 
-function resolveDeclaredRoot(definitionDir: string, relativeRoot: string, kind: 'api' | 'impl', id: string): string {
+function resolveApp(loadedApp: LoadedArchicatApp): ResolvedArchicatApp {
+  const { contract, contractFilePath, definitionDir } = loadedApp;
+
+  assertValidName(contract.name, contractFilePath, 'app');
+
+  return {
+    kind: 'app',
+    name: contract.name,
+    target: `app.${contract.name}`,
+    contractFilePath,
+    definitionDir,
+    rootPath: contract.root ? resolveDeclaredRoot(definitionDir, contract.root, 'app', contract.name) : definitionDir,
+    dependencies: [...contract.dependencies],
+  };
+}
+
+function resolveSurface(rootPath: string | undefined, dependencies: readonly string[], mirrorRootPath: string): ResolvedArchicatSurface {
+  return {
+    ...(rootPath ? { rootPath } : {}),
+    mirrorRootPath,
+    dependencies: [...dependencies],
+  };
+}
+
+function resolveDeclaredRoot(definitionDir: string, relativeRoot: string, kind: 'api' | 'impl' | 'app', name: string): string {
   const resolved = path.resolve(definitionDir, relativeRoot);
 
   if (!fs.existsSync(resolved)) {
-    throw new Error(`Definition "${id}" declares ${kind} root that does not exist: ${resolved}`);
+    throw new Error(`Definition "${name}" declares ${kind} root that does not exist: ${resolved}`);
   }
 
   if (!fs.statSync(resolved).isDirectory()) {
-    throw new Error(`Definition "${id}" declares ${kind} root that is not a directory: ${resolved}`);
+    throw new Error(`Definition "${name}" declares ${kind} root that is not a directory: ${resolved}`);
   }
 
   return resolved;
@@ -114,53 +148,55 @@ function resolveDeclaredRoot(definitionDir: string, relativeRoot: string, kind: 
 
 // MARK: - Private graph
 
-function buildGraph(definitions: readonly ResolvedArchicatDefinition[]): {
+function buildGraph(
+  definitions: readonly ResolvedArchicatDefinition[],
+  apps: readonly ResolvedArchicatApp[],
+): {
   targets: ArchicatGraphTarget[];
   dependencies: ArchicatGraphDependency[];
 } {
-  const targets = definitions.flatMap((definition): ArchicatGraphTarget[] => {
-    if (definition.kind === 'module') {
-      return [
-        { key: definition.apiTarget, kind: definition.kind, id: definition.id, surface: 'api' },
-        { key: definition.implTarget, kind: definition.kind, id: definition.id, surface: 'impl' },
-      ];
-    }
+  const targets = definitions.flatMap((definition): ArchicatGraphTarget[] => [
+    { key: definition.apiTarget, kind: definition.kind, name: definition.name, surface: 'api' },
+    { key: definition.implTarget, kind: definition.kind, name: definition.name, surface: 'impl' },
+  ]);
 
-    return [{ key: definition.apiTarget, kind: definition.kind, id: definition.id, surface: 'api' }];
-  });
+  const declaredDependencies = [
+    ...definitions.flatMap((definition) => [
+      ...definition.api.dependencies.map((dependency) => ({ from: definition.apiTarget, to: dependency, origin: 'declared' as const })),
+      ...definition.impl.dependencies.map((dependency) => ({ from: definition.implTarget, to: dependency, origin: 'declared' as const })),
+    ]),
+    ...apps.flatMap((app) => app.dependencies.map((dependency) => ({ from: app.target, to: dependency, origin: 'declared' as const }))),
+  ];
 
-  const explicitDependencies = definitions.flatMap((definition) => {
-    const from = definition.kind === 'module' ? definition.implTarget : definition.apiTarget;
-    return definition.dependencies.map((dependency) => ({ from, to: dependency, origin: 'declared' as const }));
-  });
-
-  const derivedDependencies = definitions
-    .filter((definition): definition is ResolvedArchicatModule => definition.kind === 'module')
-    .map((module) => ({ from: module.implTarget, to: module.apiTarget, origin: 'derived' as const }));
+  const derivedDependencies = definitions.map((definition) => ({
+    from: definition.implTarget,
+    to: definition.apiTarget,
+    origin: 'derived' as const,
+  }));
 
   return {
     targets,
-    dependencies: [...derivedDependencies, ...explicitDependencies],
+    dependencies: [...derivedDependencies, ...declaredDependencies],
   };
 }
 
 // MARK: - Private validation
 
-function assertValidId(id: string, filePath: string, kind: string): void {
-  if (!/^[a-z][a-z0-9-]*$/u.test(id)) {
-    throw new Error(`Invalid Archicat ${kind} id "${id}" in ${filePath}. Use ^[a-z][a-z0-9-]*$`);
+function assertValidName(name: string, filePath: string, kind: string): void {
+  if (!/^[a-z][a-z0-9-]*$/u.test(name)) {
+    throw new Error(`Invalid Archicat ${kind} name "${name}" in ${filePath}. Use ^[a-z][a-z0-9-]*$`);
   }
 }
 
-function assertUniqueDefinitionIds(definitions: readonly ResolvedArchicatDefinition[]): void {
+function assertUniqueDefinitionNames(definitions: readonly (ResolvedArchicatDefinition | ResolvedArchicatApp)[]): void {
   const seen = new Map<string, string>();
 
   for (const definition of definitions) {
-    const key = `${definition.kind}.${definition.id}`;
+    const key = `${definition.kind}.${definition.name}`;
     const current = seen.get(key);
 
     if (current) {
-      throw new Error(`Duplicate Archicat ${definition.kind} id "${definition.id}" in ${current} and ${definition.contractFilePath}`);
+      throw new Error(`Duplicate Archicat ${definition.kind} name "${definition.name}" in ${current} and ${definition.contractFilePath}`);
     }
 
     seen.set(key, definition.contractFilePath);
@@ -169,63 +205,33 @@ function assertUniqueDefinitionIds(definitions: readonly ResolvedArchicatDefinit
 
 function assertDependencyReferences(
   definitions: readonly ResolvedArchicatDefinition[],
+  apps: readonly ResolvedArchicatApp[],
   targets: readonly ArchicatGraphTarget[],
 ): void {
   const targetKeys = new Set(targets.map((target) => target.key));
 
   for (const definition of definitions) {
-    for (const dependency of definition.dependencies) {
-      if (!targetKeys.has(dependency)) {
-        throw new Error(`${formatDefinition(definition)} declares unknown dependency "${dependency}".`);
-      }
+    for (const dependency of definition.api.dependencies) {
+      validateDeclaredDependency(makeOwner(definition, 'api'), dependency, targetKeys);
+    }
 
-      const target = targets.find((candidate) => candidate.key === dependency);
+    for (const dependency of definition.impl.dependencies) {
+      validateDeclaredDependency(makeOwner(definition, 'impl'), dependency, targetKeys);
+    }
+  }
 
-      if (target && target.kind === definition.kind && target.id === definition.id) {
-        throw new Error(`${formatDefinition(definition)} cannot depend on itself: ${dependency}`);
-      }
+  for (const app of apps) {
+    for (const dependency of app.dependencies) {
+      validateDeclaredDependency({ kind: 'app', name: app.name, surface: 'app', target: app.target }, dependency, targetKeys);
     }
   }
 }
 
-function assertNoDependencyCycles(definitions: readonly ResolvedArchicatDefinition[]): void {
-  const moduleByApiTarget = new Map(
-    definitions
-      .filter((definition): definition is ResolvedArchicatModule => definition.kind === 'module')
-      .map((module) => [module.apiTarget, module] as const),
-  );
-
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-
-  const visit = (module: ResolvedArchicatModule, stack: string[]): void => {
-    if (visited.has(module.id)) {
-      return;
-    }
-
-    if (visiting.has(module.id)) {
-      throw new Error(`Cyclic Archicat module dependency detected: ${[...stack, module.id].join(' -> ')}`);
-    }
-
-    visiting.add(module.id);
-
-    for (const dependency of module.dependencies) {
-      const dependencyModule = moduleByApiTarget.get(dependency);
-
-      if (dependencyModule) {
-        visit(dependencyModule, [...stack, module.id]);
-      }
-    }
-
-    visiting.delete(module.id);
-    visited.add(module.id);
+function makeOwner(definition: ResolvedArchicatDefinition, surface: 'api' | 'impl'): DependencyOwner {
+  return {
+    kind: definition.kind,
+    name: definition.name,
+    surface,
+    target: surface === 'api' ? definition.apiTarget : definition.implTarget,
   };
-
-  for (const module of moduleByApiTarget.values()) {
-    visit(module, []);
-  }
-}
-
-function formatDefinition(definition: ResolvedArchicatDefinition): string {
-  return `${definition.kind} "${definition.id}"`;
 }

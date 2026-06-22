@@ -8,6 +8,7 @@ verifyDepsBeforeRun: false
 minimumReleaseAge: 0
 
 overrides:
+  "@types/node": 26.0.0
   typescript: 6.0.3
   jiti: 2.7.0
 

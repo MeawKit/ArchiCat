@@ -4,6 +4,7 @@
     "target": "ES2024",
     "module": "Preserve",
     "moduleResolution": "bundler",
+    "types": ["node"],
 
     /* Strictness */
     "strict": true,

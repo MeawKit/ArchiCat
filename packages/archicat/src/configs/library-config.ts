@@ -1,25 +1,26 @@
-import type { ArchicatDependency } from './archicat-project-graph.js';
+import type { ArchicatLibraryApiDependency, ArchicatLibraryImplDependency } from './archicat-project-graph.js';
+import type { ArchicatSurfaceContract, ArchicatSurfaceInput } from './surface-config.js';
 
 /**
  * @description User-facing library definition input.
  */
 export interface ArchicatLibraryInput {
   /**
-   * @description Stable library id used in the Archicat project graph.
+   * @description Stable library name used in the Archicat project graph.
    */
-  readonly id: string;
+  readonly name: string;
 
   /**
-   * @description Library public API root, relative to the library definition file.
+   * @description Library public API surface.
    * @default Generates an empty public API mirror.
    */
-  readonly api?: string;
+  readonly api?: ArchicatSurfaceInput<ArchicatLibraryApiDependency>;
 
   /**
-   * @description Public graph dependencies this library may import.
-   * @default []
+   * @description Library implementation surface.
+   * @default Generates a no-op implementation mirror.
    */
-  readonly dependencies?: readonly ArchicatDependency[];
+  readonly impl?: ArchicatSurfaceInput<ArchicatLibraryImplDependency>;
 }
 
 /**
@@ -27,7 +28,7 @@ export interface ArchicatLibraryInput {
  */
 export type ArchicatLibraryContract = Readonly<{
   readonly kind: 'library';
-  readonly id: string;
-  readonly api?: string;
-  readonly dependencies: readonly ArchicatDependency[];
+  readonly name: string;
+  readonly api: ArchicatSurfaceContract<ArchicatLibraryApiDependency>;
+  readonly impl: ArchicatSurfaceContract<ArchicatLibraryImplDependency>;
 }>;

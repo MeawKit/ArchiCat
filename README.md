@@ -4,7 +4,7 @@
 
 The generative architecture framework for clean architecture.
 
-Archicat generates a module mirror from your source code. Public APIs become aliases. Implementations stay private. The mirror is the boundary.
+Archicat generates a mirror from your source code. APIs become aliases. Implementations stay behind architecture rules.
 
 ```bash
 npm i -D archicat
@@ -12,53 +12,111 @@ npm i -D archicat
 
 ## Why
 
-Architecture should be enforceable.
+TypeScript asks: can this import resolve?
 
-Your code stays yours.
+Archicat asks: should this import exist?
 
-## M²
+## Definitions
 
-**M²** means **Modular Mirroring**.
+### Module
 
-```txt
-source modules
-  -> module definitions
-  -> generated mirror
-  -> checked boundaries
-```
-
-You define the module:
+Business/application unit.
 
 ```ts
 import { defineModule } from 'archicat';
 
 export default defineModule({
-  id: 'media',
-  api: './api',
-  impl: './impl',
-  dependencies: ['module.account.api'],
+  name: 'media',
+
+  api: {
+    root: './api',
+    dependencies: ['module.account.api', 'library.error.api'],
+  },
+
+  impl: {
+    root: './impl',
+    dependencies: ['module.account.api', 'library.backend.api'],
+  },
 });
 ```
 
-Archicat mirrors it:
+### Library
 
-```txt
-.archicat/modules/media/
-  api/
-  impl/
+Lower reusable unit.
+
+```ts
+import { defineLibrary } from 'archicat';
+
+export default defineLibrary({
+  name: 'backend',
+
+  api: './api',
+  impl: './impl',
+});
 ```
 
-You import the mirror:
+### App
+
+Composition root.
+
+```ts
+import { defineApp } from 'archicat';
+
+export default defineApp({
+  name: 'main-api',
+  root: './src/app',
+
+  dependencies: [
+    'module.media.impl',
+    'library.backend.impl',
+  ],
+});
+```
+
+## Dependency rules
+
+### Module
+
+| Source | Can depend on | Cannot depend on |
+|---|---|---|
+| `module.*.api` | `module.*.api`, `library.*.api` | `module.*.impl`, `library.*.impl` |
+| `module.*.impl` | own `module.*.api`, `module.*.api`, `library.*.api` | `module.*.impl`, `library.*.impl` |
+
+### Library
+
+| Source | Can depend on | Cannot depend on |
+|---|---|---|
+| `library.*.api` | `library.*.api` | `module.*`, `library.*.impl` |
+| `library.*.impl` | own `library.*.api`, `library.*.api` | `module.*`, `library.*.impl` |
+
+### App
+
+| Source | Can depend on | Cannot depend on |
+|---|---|---|
+| `app.*` | `module.*.api`, `module.*.impl`, `library.*.api`, `library.*.impl` | nothing inside the Archicat graph |
+
+> [!IMPORTANT]
+> Implementation targets are wired by app composition. Normal modules and libraries depend on API targets.
+
+## Imports
+
+Public API import:
 
 ```ts
 import { AccountReader } from '@module/account';
 ```
 
-Not the machinery:
+App composition import:
 
 ```ts
-import { AccountRepository } from '@module/account/impl'; // does not exist
-import { AccountRepository } from '../../account/impl/repository'; // blocked
+import { mediaAssembly } from '@module/media/impl';
+```
+
+Blocked outside app composition:
+
+```ts
+import { MediaRepository } from '@module/media/impl';
+import { MediaRepository } from '../../media/impl/repository';
 ```
 
 ## Config
@@ -67,11 +125,37 @@ import { AccountRepository } from '../../account/impl/repository'; // blocked
 import { defineArchicatConfig } from 'archicat';
 
 export default defineArchicatConfig({
+  tsconfig: './tsconfig.json',
+
+  alias: {
+    '@app': './src/app/index.ts',
+    '@app/*': './src/app/*',
+  },
+
   modules: {
     include: ['./src/modules'],
   },
+
+  libraries: {
+    include: ['./src/libraries'],
+  },
+
+  apps: {
+    include: ['./src/app'],
+  },
 });
 ```
+
+Root `tsconfig.json`:
+
+```json
+{
+  "extends": "./.archicat/tsconfig.json"
+}
+```
+
+> [!IMPORTANT]
+> Put user aliases in `archicat.config.ts`, not in root `compilerOptions.paths`.
 
 ## Output
 
@@ -79,18 +163,11 @@ export default defineArchicatConfig({
 .archicat/
   tsconfig.json
   modules/
+  libraries/
   types/
-
-archicat-report/
-  build.json
-```
-
-Extend the generated config:
-
-```json
-{
-  "extends": "./.archicat/tsconfig.json"
-}
+  reports/
+    build.report.json
+    graph.report.json
 ```
 
 ## Commands

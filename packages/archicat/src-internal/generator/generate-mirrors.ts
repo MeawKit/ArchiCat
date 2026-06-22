@@ -4,6 +4,7 @@ import type {
   ResolvedArchicatDefinition,
   ResolvedArchicatLibrary,
   ResolvedArchicatModule,
+  ResolvedArchicatSurface,
 } from '@internal/model';
 import { normalizePath, toPosixRelativeImport } from '@internal/path';
 import { hasDefaultExport, listTypeScriptFiles } from '@internal/scanner';
@@ -19,7 +20,7 @@ export function generateMirrors(definitions: readonly ResolvedArchicatDefinition
         generateModuleMirror(definition);
         break;
       case 'library':
-        generateApiMirror(definition);
+        generateLibraryMirror(definition);
         break;
     }
   }
@@ -28,52 +29,58 @@ export function generateMirrors(definitions: readonly ResolvedArchicatDefinition
 // MARK: - Private
 
 function generateModuleMirror(module: ResolvedArchicatModule): void {
-  generateApiMirror(module);
-  generateImplMirror(module);
+  generateApiMirror(module.api);
+  generateImplMirror(module, 'module');
 }
 
-function generateApiMirror(definition: ResolvedArchicatModule | ResolvedArchicatLibrary): void {
-  if (!definition.apiRootPath) {
-    writeTextFile(path.join(definition.mirrorApiRootPath, 'index.ts'), `${makeMirrorHeader()}export {};
+function generateLibraryMirror(library: ResolvedArchicatLibrary): void {
+  generateApiMirror(library.api);
+  generateImplMirror(library, 'library');
+}
+
+function generateApiMirror(surface: ResolvedArchicatSurface): void {
+  if (!surface.rootPath) {
+    writeTextFile(path.join(surface.mirrorRootPath, 'index.ts'), `${makeMirrorHeader()}export {};
 `);
     return;
   }
 
-  const apiFiles = listTypeScriptFiles(definition.apiRootPath);
+  const apiFiles = listTypeScriptFiles(surface.rootPath);
   const mirroredRelativePaths = new Set<string>();
 
   for (const sourceFilePath of apiFiles) {
-    const relativePath = normalizePath(path.relative(definition.apiRootPath, sourceFilePath));
+    const relativePath = normalizePath(path.relative(surface.rootPath, sourceFilePath));
     mirroredRelativePaths.add(relativePath);
-    writeMirrorFile(path.join(definition.mirrorApiRootPath, relativePath), sourceFilePath);
+    writeMirrorFile(path.join(surface.mirrorRootPath, relativePath), sourceFilePath);
   }
 
   if (!mirroredRelativePaths.has('index.ts')) {
-    writeTextFile(path.join(definition.mirrorApiRootPath, 'index.ts'), `${makeMirrorHeader()}export {};
+    writeTextFile(path.join(surface.mirrorRootPath, 'index.ts'), `${makeMirrorHeader()}export {};
 `);
   }
 }
 
-function generateImplMirror(module: ResolvedArchicatModule): void {
-  const implIndexPath = module.implRootPath ? findIndexFile(module.implRootPath) : undefined;
+function generateImplMirror(definition: ResolvedArchicatModule | ResolvedArchicatLibrary, kind: 'module' | 'library'): void {
+  const implIndexPath = definition.impl.rootPath ? findIndexFile(definition.impl.rootPath) : undefined;
 
   if (!implIndexPath) {
+    const constName = kind === 'module' ? 'ArchicatModuleImplementation' : 'ArchicatLibraryImplementation';
     const content = `${makeMirrorHeader()}
-export const ArchicatModuleImplementation = {
-  id: '${module.id}',
+export const ${constName} = {
+  name: '${definition.name}',
   assemblies: [],
   schemas: [],
   routes: [],
 } as const;
 
-export default ArchicatModuleImplementation;
+export default ${constName};
 `;
 
-    writeTextFile(path.join(module.mirrorImplRootPath, 'index.ts'), content);
+    writeTextFile(path.join(definition.impl.mirrorRootPath, 'index.ts'), content);
     return;
   }
 
-  writeMirrorFile(path.join(module.mirrorImplRootPath, 'index.ts'), implIndexPath);
+  writeMirrorFile(path.join(definition.impl.mirrorRootPath, 'index.ts'), implIndexPath);
 }
 
 function writeMirrorFile(targetFilePath: string, sourceFilePath: string): void {
