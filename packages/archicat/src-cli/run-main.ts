@@ -1,23 +1,32 @@
-import type { ArchicatCliCommandLine, ArchicatCliCommandOptions, ArchicatCliCommandResult } from './commands/index.js';
-import { runCheckCommand, runDoctorCommand, runGenerateCommand, runGraphCommand } from './commands/index.js';
+import type { ArchicatCliCommandOptions, ArchicatCliCommandResult } from './commands/index.js';
+import {
+  runBuildCommand,
+  runCheckCommand,
+  runDoctorCommand,
+  runGenerateCommand,
+  runGraphCommand,
+  runValidateCommand,
+} from './commands/index.js';
+import { ArchicatCliLogger } from './logger/cli-logger.js';
 
 // MARK: - Public
 
 export async function runMain(argv = process.argv.slice(2)): Promise<void> {
   const [command, ...rest] = argv;
+  const logger = new ArchicatCliLogger();
 
   try {
     const options = parseOptions(rest);
-    const result = await runCommand(command, options);
+    const result = await runCommand(command, options, logger);
 
     if (!result) {
       return;
     }
 
-    printResult(result);
+    logger.result(result);
     process.exitCode = result.exitCode;
   } catch (error) {
-    printLine({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+    logger.line({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     process.exitCode = 1;
   }
 }
@@ -27,25 +36,30 @@ export async function runMain(argv = process.argv.slice(2)): Promise<void> {
 async function runCommand(
   command: string | undefined,
   options: ArchicatCliCommandOptions,
+  logger: ArchicatCliLogger,
 ): Promise<ArchicatCliCommandResult | undefined> {
   switch (command) {
+    case 'build':
+      return await runBuildCommand(options);
     case 'generate':
-      return runGenerateCommand(options);
+      return await runGenerateCommand(options);
+    case 'validate':
+      return await runValidateCommand(options);
     case 'check':
-      return runCheckCommand(options);
+      return await runCheckCommand(options);
     case 'graph':
-      return runGraphCommand(options);
+      return await runGraphCommand(options);
     case 'doctor':
-      return runDoctorCommand(options);
+      return await runDoctorCommand(options);
     case 'help':
     case '--help':
     case '-h':
     case undefined:
-      printHelp();
+      logger.help();
       return undefined;
     default:
-      printLine({ kind: 'error', message: `Unknown command: ${command}` });
-      printHelp();
+      logger.line({ kind: 'error', message: `Unknown command: ${command}` });
+      logger.help();
       return { exitCode: 1, lines: [] };
   }
 }
@@ -71,42 +85,4 @@ function parseOptions(args: string[]): ArchicatCliCommandOptions {
   }
 
   return options;
-}
-
-// MARK: - Private output
-
-function printResult(result: ArchicatCliCommandResult): void {
-  for (const line of result.lines) {
-    printLine(line);
-  }
-}
-
-function printHelp(): void {
-  console.log([
-    'Archicat',
-    '',
-    'Usage:',
-    '  archicat generate [--config archicat.config.ts]',
-    '  archicat check [--config archicat.config.ts]',
-    '  archicat graph [--config archicat.config.ts]',
-    '  archicat doctor [--config archicat.config.ts]',
-    '',
-  ].join('\n'));
-}
-
-function printLine(line: ArchicatCliCommandLine): void {
-  switch (line.kind) {
-    case 'success':
-      console.log(`✓ ${line.message}`);
-      return;
-    case 'warning':
-      console.warn(`! ${line.message}`);
-      return;
-    case 'error':
-      console.error(`✗ ${line.message}`);
-      return;
-    case 'info':
-      console.log(line.message);
-      return;
-  }
 }

@@ -36,7 +36,7 @@ describe('app imports', () => {
 
     expect(runArchicat(root, 'generate').status).toBe(0);
 
-    const result = runArchicat(root, 'check');
+    const result = runArchicat(root, 'validate');
 
     expect(result.status, result.stderr).toBe(0);
   });
@@ -58,9 +58,12 @@ describe('app imports', () => {
     });
     createApp(root, { name: 'main-api', dependencies: ['module.account.impl'] });
 
-    expect(runArchicat(root, 'generate').status).toBe(0);
+    const generateResult = runArchicat(root, 'generate');
 
-    const result = runArchicat(root, 'check');
+    expect(generateResult.status).not.toBe(0);
+    expect(generateResult.stderr).toMatch(/cannot import implementation target/);
+
+    const result = runArchicat(root, 'validate');
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/cannot import implementation target/);

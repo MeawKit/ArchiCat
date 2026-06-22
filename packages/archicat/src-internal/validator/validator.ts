@@ -15,7 +15,15 @@ import { listTypeScriptFiles, scanImports } from '@internal/scanner';
 
 export async function validate(configFileName?: string): Promise<ArchicatViolation[]> {
   const project = await loadArchicatBuildContext(configFileName);
+  return validateProject(project);
+}
+
+export function validateProject(project: ResolvedArchicatProject): ArchicatViolation[] {
   return validateImports(project);
+}
+
+export function formatViolation(violation: ArchicatViolation): string {
+  return `${violation.filePath}\n  import: ${violation.importPath}\n  ${violation.message}`;
 }
 
 // MARK: - Validation model

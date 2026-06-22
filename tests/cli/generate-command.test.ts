@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { afterAll, describe, expect, test } from 'vitest';
 
 import { cleanupConsumerProjects, createApp, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
@@ -8,7 +11,7 @@ describe('generate command', () => {
     cleanupConsumerProjects();
   });
 
-  test('should print mirrored module and library counts', () => {
+  test('should build generated Archicat artifacts', () => {
     const root = createConsumerProject('cli-generate-output', {
       config: {
         librariesInclude: ['./src/libraries'],
@@ -24,8 +27,9 @@ describe('generate command', () => {
     const result = runArchicat(root, 'generate');
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Mirrored modules: 2/);
-    expect(result.stdout).toMatch(/Mirrored libraries: 1/);
-    expect(result.stdout).toMatch(/Resolved apps: 1/);
+    expect(fs.existsSync(path.join(root, '.archicat/tsconfig.json'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.archicat/modules/account/api/index.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.archicat/libraries/backend/api/index.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.archicat/reports/build.report.json'))).toBe(true);
   });
 });

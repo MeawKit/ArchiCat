@@ -11,19 +11,11 @@ import { readTsconfigCompilerOptions, readTsconfigFile } from '@internal/tsconfi
 
 export async function doctor(configFileName?: string): Promise<ArchicatDoctorIssue[]> {
   const project = await loadArchicatBuildContext(configFileName);
-  return [...checkGeneratedTsconfig(project), ...checkConsumerTsconfig(project), ...checkPhysicalOmissions(project)];
+  return doctorProject(project);
 }
 
-// MARK: - Generated TSConfig checks
-
-function checkGeneratedTsconfig(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
-  const generatedTsconfig = makeGeneratedTsconfigPath(project);
-
-  if (fs.existsSync(generatedTsconfig)) {
-    return [];
-  }
-
-  return [{ severity: 'warning', message: `Generated tsconfig does not exist yet: ${generatedTsconfig}. Run archicat generate.` }];
+export function doctorProject(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
+  return [...checkConsumerTsconfig(project), ...checkPhysicalOmissions(project)];
 }
 
 // MARK: - Consumer TSConfig checks

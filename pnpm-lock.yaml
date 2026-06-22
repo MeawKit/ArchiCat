@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  typescript: 6.0.3
-
 importers:
 
   .:
@@ -32,6 +29,9 @@ importers:
 
   packages/archicat:
     dependencies:
+      consola:
+        specifier: 3.4.2
+        version: 3.4.2
       jiti:
         specifier: 2.7.0
         version: 2.7.0
@@ -1024,6 +1024,10 @@ packages:
     resolution: {integrity: sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==}
     engines: {'0': node >= 6.0}
 
+  consola@3.4.2:
+    resolution: {integrity: sha512-5IKcdX0nnYavi6G7TtOhwkYzyjfJlatbjMjuLSfE2kYT5pMDOilZ4OvMhi637CcDICTmz3wARPoyhqyX1Y+XvA==}
+    engines: {node: ^14.18.0 || >=16.10.0}
+
   console-control-strings@1.1.0:
     resolution: {integrity: sha512-ty/fTekppD2fIwRvnZAVdeOiGd1c7YXEixbgJTNzqcxJWKQnjJ/V1bNEEE6hygpM3WjwHFUVK6HTjWSzV4a8sQ==}
 
@@ -1068,7 +1072,7 @@ packages:
     resolution: {integrity: sha512-itvL5h8RETACmOTFc4UfIyB2RfEHi71Ax6E/PivVxq9NseKbOWpeyHEOIbmAw1rs8Ak0VursQNww7lf7YtUwzg==}
     engines: {node: '>=14'}
     peerDependencies:
-      typescript: 6.0.3
+      typescript: '>=4.9.5'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -2290,7 +2294,7 @@ packages:
       '@ts-macro/tsc': ^0.3.6
       '@typescript/native-preview': '>=7.0.0-dev.20260325.1'
       rolldown: ^1.0.0
-      typescript: 6.0.3
+      typescript: ^5.0.0 || ^6.0.0
       vue-tsc: ~3.2.0 || ~3.3.0
     peerDependenciesMeta:
       '@ts-macro/tsc':
@@ -2535,7 +2539,7 @@ packages:
       '@vitejs/devtools': '*'
       publint: ^0.3.8
       tsx: '*'
-      typescript: 6.0.3
+      typescript: ^5.0.0 || ^6.0.0
       unplugin-unused: ^0.5.0
       unrun: '*'
     peerDependenciesMeta:
@@ -2579,6 +2583,11 @@ packages:
 
   typedarray@0.0.6:
     resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
@@ -3748,6 +3757,8 @@ snapshots:
       readable-stream: 3.6.2
       typedarray: 0.0.6
 
+  consola@3.4.2: {}
+
   console-control-strings@1.1.0: {}
 
   conventional-changelog-angular@7.0.0:
@@ -3806,14 +3817,14 @@ snapshots:
 
   core-util-is@1.0.3: {}
 
-  cosmiconfig@9.0.0(typescript@6.0.3):
+  cosmiconfig@9.0.0(typescript@5.9.3):
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
       js-yaml: 4.1.1
       parse-json: 5.2.0
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 5.9.3
 
   cross-spawn@7.0.6:
     dependencies:
@@ -4328,7 +4339,7 @@ snapshots:
       conventional-changelog-angular: 7.0.0
       conventional-changelog-core: 5.0.1
       conventional-recommended-bump: 7.0.1
-      cosmiconfig: 9.0.0(typescript@6.0.3)
+      cosmiconfig: 9.0.0(typescript@5.9.3)
       dedent: 1.5.3
       envinfo: 7.13.0
       execa: 5.0.0
@@ -4369,7 +4380,7 @@ snapshots:
       tar: 7.5.11
       through: 2.3.8
       tinyglobby: 0.2.12
-      typescript: 6.0.3
+      typescript: 5.9.3
       upath: 2.0.1
       validate-npm-package-license: 3.0.4
       validate-npm-package-name: 6.0.2
@@ -4648,7 +4659,7 @@ snapshots:
       proc-log: 6.1.0
       semver: 7.7.2
       tar: 7.5.11
-      tinyglobby: 0.2.17
+      tinyglobby: 0.2.12
       undici: 6.27.0
       which: 6.0.1
 
@@ -5473,6 +5484,8 @@ snapshots:
   type-fest@0.8.1: {}
 
   typedarray@0.0.6: {}
+
+  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 

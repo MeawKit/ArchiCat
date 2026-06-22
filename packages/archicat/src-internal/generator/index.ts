@@ -1,1 +1,1 @@
-export { generate } from './generator.js';
+export { generate, generateArtifacts } from './generator.js';

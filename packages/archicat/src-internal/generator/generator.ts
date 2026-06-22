@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { loadArchicatBuildContext } from '@internal/context';
 import type { ResolvedArchicatProject } from '@internal/model';
+import { formatViolation, validateProject } from '@internal/validator';
 
 import { resetDirectory } from '@internal/generator/file-writer';
 import { generateGraphTypes } from '@internal/generator/generate-graph-types';
@@ -14,10 +15,20 @@ import { generateTsconfig } from '@internal/generator/generate-tsconfig';
 
 export async function generate(configFileName?: string): Promise<ResolvedArchicatProject> {
   const project = await loadArchicatBuildContext(configFileName);
+  assertBuildableProject(project);
 
-  if (path.resolve(project.outDir) === path.resolve(project.rootDir)) {
-    throw new Error('Archicat outDir cannot be the project root.');
+  const violations = validateProject(project);
+
+  if (violations.length > 0) {
+    throw new Error(['Architecture validation failed.', ...violations.map(formatViolation)].join('\n'));
   }
+
+  generateArtifacts(project);
+  return project;
+}
+
+export function generateArtifacts(project: ResolvedArchicatProject): void {
+  assertBuildableProject(project);
 
   resetDirectory(project.outDir);
   fs.mkdirSync(path.join(project.outDir, 'modules'), { recursive: true });
@@ -28,6 +39,12 @@ export async function generate(configFileName?: string): Promise<ResolvedArchica
   generateGraphTypes(project);
   generateTsconfig(project);
   generateReport(project);
+}
 
-  return project;
+// MARK: - Private
+
+function assertBuildableProject(project: ResolvedArchicatProject): void {
+  if (path.resolve(project.outDir) === path.resolve(project.rootDir)) {
+    throw new Error('Archicat outDir cannot be the project root.');
+  }
 }

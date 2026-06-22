@@ -12,9 +12,10 @@ npm i -D archicat
 
 ## Why
 
-TypeScript asks: can this import resolve?
-
+TypeScript asks: will this import resolve?
 Archicat asks: should this import exist?
+
+One is a compiler. The other is an architect.
 
 ## Definitions
 
@@ -183,8 +184,8 @@ App `tsconfig.json`:
 ## Commands
 
 ```bash
-archicat generate
-archicat check
+archicat build
+archicat validate
 archicat graph
 archicat doctor
 ```

@@ -1,13 +1,13 @@
 {
   "name": "archicat",
-  "version": "0.0.7",
-  "description": "M²: modular mirroring for clean architecture.",
+  "version": "0.0.8",
+  "description": "Modular mirroring (M²) for clean architecture.",
   "keywords": [
     "m2",
-    "modular-mirroring",
+    "mirroring",
+    "modular",
     "module-system",
-    "clean-architecture",
-    "architecture"
+    "clean-architecture"
   ],
   "license": "MIT",
   "author": "Simon Rastislav Kovačič",
@@ -39,7 +39,8 @@
   },
   "dependencies": {
     "jiti": "2.7.0",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "consola": "3.4.2"
   },
   "devDependencies": {
     "@types/node": "26.0.0"

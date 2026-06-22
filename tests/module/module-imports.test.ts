@@ -23,10 +23,9 @@ describe('module imports', () => {
 
     expect(runArchicat(root, 'generate').status).toBe(0);
 
-    const result = runArchicat(root, 'check');
+    const result = runArchicat(root, 'validate');
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Architecture check passed/);
   });
 
   test('should allow module implementation to import own api without declaring itself', () => {
@@ -42,7 +41,7 @@ describe('module imports', () => {
 
     expect(runArchicat(root, 'generate').status).toBe(0);
 
-    const result = runArchicat(root, 'check');
+    const result = runArchicat(root, 'validate');
 
     expect(result.status, result.stderr).toBe(0);
   });
@@ -59,9 +58,12 @@ describe('module imports', () => {
       `,
     });
 
-    expect(runArchicat(root, 'generate').status).toBe(0);
+    const generateResult = runArchicat(root, 'generate');
 
-    const result = runArchicat(root, 'check');
+    expect(generateResult.status).not.toBe(0);
+    expect(generateResult.stderr).toMatch(/imports "module.account.api" but does not declare a dependency/);
+
+    const result = runArchicat(root, 'validate');
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/imports "module.account.api" but does not declare a dependency/);
@@ -80,9 +82,12 @@ describe('module imports', () => {
       `,
     });
 
-    expect(runArchicat(root, 'generate').status).toBe(0);
+    const generateResult = runArchicat(root, 'generate');
 
-    const result = runArchicat(root, 'check');
+    expect(generateResult.status).not.toBe(0);
+    expect(generateResult.stderr).toMatch(/imports Module "account"/);
+
+    const result = runArchicat(root, 'validate');
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/imports Module "account"/);
@@ -107,7 +112,7 @@ describe('module imports', () => {
 
     expect(runArchicat(root, 'generate').status).toBe(0);
 
-    const result = runArchicat(root, 'check');
+    const result = runArchicat(root, 'validate');
 
     expect(result.status, result.stderr).toBe(0);
   });

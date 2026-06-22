@@ -21,9 +21,12 @@ describe('import boundary validator', () => {
       `,
     });
 
-    expect(runArchicat(root, 'generate').status).toBe(0);
+    const generateResult = runArchicat(root, 'generate');
 
-    const result = runArchicat(root, 'check');
+    expect(generateResult.status).not.toBe(0);
+    expect(generateResult.stderr).toMatch(/imports Module "account"/);
+
+    const result = runArchicat(root, 'validate');
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/imports Module "account"/);
