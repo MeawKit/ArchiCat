@@ -1,14 +1,11 @@
-packages:
-  - packages/*
-
 saveExact: true
 strictPeerDependencies: true
 autoInstallPeers: true
 verifyDepsBeforeRun: false
 minimumReleaseAge: 0
 
-overrides:
-  typescript: 6.0.3
+packages:
+  - packages/*
 
 allowBuilds:
   nx: true
