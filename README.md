@@ -125,7 +125,13 @@ import { MediaRepository } from '../../media/impl/repository';
 import { defineArchicatConfig } from 'archicat';
 
 export default defineArchicatConfig({
-  tsconfig: './tsconfig.json',
+  typescript: {
+    tsConfig: {
+      extends: '../../tsconfig.node.json',
+      include: ['bootstrap.ts', 'src/app', 'src/libraries', 'src/modules', 'types'],
+      exclude: ['node_modules', 'dist'],
+    },
+  },
 
   alias: {
     '@app': './src/app/index.ts',
@@ -146,16 +152,20 @@ export default defineArchicatConfig({
 });
 ```
 
-Root `tsconfig.json`:
+App `tsconfig.json`:
 
 ```json
 {
-  "extends": "./.archicat/tsconfig.json"
+  "extends": "./.archicat/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist"
+  }
 }
 ```
 
 > [!IMPORTANT]
-> Put user aliases in `archicat.config.ts`, not in root `compilerOptions.paths`.
+> Generated `.archicat/tsconfig.json` extends `typescript.tsConfig.extends`, therefore put user aliases in `archicat.config.ts`, not in `compilerOptions.paths`.
 
 ## Output
 

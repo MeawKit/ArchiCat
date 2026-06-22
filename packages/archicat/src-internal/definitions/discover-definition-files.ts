@@ -1,14 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// MARK: - Public
+import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
+
+// MARK: - Definition discovery
 
 export function discoverDefinitionFiles(rootDir: string, includes: readonly string[], markerFileName: string): string[] {
   const files = includes.flatMap((include) => expandInclude(rootDir, include, markerFileName));
   return Array.from(new Set(files)).sort((a, b) => a.localeCompare(b));
 }
 
-// MARK: - Private
+// MARK: - Include expansion
 
 function expandInclude(rootDir: string, include: string, markerFileName: string): string[] {
   const resolved = path.resolve(rootDir, include);
@@ -91,5 +93,6 @@ function makeWildcardRegExp(pattern: string): RegExp {
 }
 
 function shouldSkip(name: string): boolean {
-  return ['node_modules', '.git', '.archicat', 'archicat-report', 'dist', 'build', 'coverage'].includes(name);
+  const ignoredDirectoryNames: readonly string[] = ArchicatDefaults.generated.ignoredDirectoryNames;
+  return ignoredDirectoryNames.includes(name);
 }

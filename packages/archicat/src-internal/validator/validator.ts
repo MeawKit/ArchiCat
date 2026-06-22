@@ -11,14 +11,14 @@ import type {
 import { isPathInside, makeRelativeDisplayPath, stripKnownExtension } from '@internal/path';
 import { listTypeScriptFiles, scanImports } from '@internal/scanner';
 
-// MARK: - Public
+// MARK: - Import validation
 
 export async function validate(configFileName?: string): Promise<ArchicatViolation[]> {
   const project = await loadArchicatBuildContext(configFileName);
   return validateImports(project);
 }
 
-// MARK: - Private model
+// MARK: - Validation model
 
 type SourceOwner =
   | {
@@ -43,7 +43,7 @@ interface AliasTarget {
   target: string;
 }
 
-// MARK: - Private validate
+// MARK: - Import rule checks
 
 function validateImports(project: ResolvedArchicatProject): ArchicatViolation[] {
   const violations: ArchicatViolation[] = [];
@@ -140,7 +140,7 @@ function validateRelativeImport(
   );
 }
 
-// MARK: - Private owner
+// MARK: - Import owner resolving
 
 function findOwner(project: ResolvedArchicatProject, filePath: string): SourceOwner | undefined {
   const extensionless = stripKnownExtension(filePath);
@@ -190,7 +190,7 @@ function isSameDefinition(left: SourceOwner, right: SourceOwner): boolean {
   return left.kind === right.kind && left.name === right.name;
 }
 
-// MARK: - Private aliases
+// MARK: - Alias resolving
 
 function resolveAlias(project: ResolvedArchicatProject, importPath: string): AliasTarget | undefined {
   for (const definition of project.definitions) {
@@ -220,7 +220,7 @@ function isOwnApiImport(owner: SourceOwner, target: AliasTarget): boolean {
   return owner.kind === target.kind && owner.name === target.name && target.surface === 'api';
 }
 
-// MARK: - Private graph
+// MARK: - Graph lookups
 
 function canReach(project: ResolvedArchicatProject, from: string, to: string): boolean {
   const visited = new Set<string>();
@@ -247,7 +247,7 @@ function canReach(project: ResolvedArchicatProject, from: string, to: string): b
   return false;
 }
 
-// MARK: - Private format
+// MARK: - Diagnostics formatting
 
 function makeViolation(
   project: ResolvedArchicatProject,

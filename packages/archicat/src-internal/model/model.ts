@@ -1,11 +1,18 @@
 import type { ArchicatAppContract, ArchicatConfig, ArchicatLibraryContract, ArchicatModuleContract } from '@/configs';
 
-// MARK: - Public configuration model
+// MARK: - Configuration model
 
 export interface ResolvedArchicatConfig {
   root: string;
   outDir: string;
-  tsconfig?: string;
+  typescript: {
+    tsConfig: {
+      extends?: string;
+      include: string[];
+      exclude: string[];
+      files: string[];
+    };
+  };
   alias: Record<string, string>;
   prefixes: {
     module: string;
@@ -32,7 +39,7 @@ export interface LoadedArchicatConfig {
   resolvedConfig: ResolvedArchicatConfig;
 }
 
-// MARK: - Public loaded definitions
+// MARK: - Loaded definition model
 
 export interface LoadedArchicatModule {
   kind: 'module';
@@ -57,7 +64,7 @@ export interface LoadedArchicatApp {
 
 export type LoadedArchicatDefinition = LoadedArchicatModule | LoadedArchicatLibrary | LoadedArchicatApp;
 
-// MARK: - Public graph model
+// MARK: - Dependency graph model
 
 export type ArchicatDefinitionKind = 'module' | 'library' | 'app';
 export type ArchicatTargetKind = 'module' | 'library';
@@ -76,6 +83,8 @@ export interface ArchicatGraphDependency {
   to: string;
   origin: ArchicatDependencyOrigin;
 }
+
+// MARK: - Resolved definition model
 
 export interface ResolvedArchicatSurface {
   rootPath?: string;
@@ -130,6 +139,8 @@ export interface ArchicatProjectGraph {
   dependencies: ArchicatGraphDependency[];
 }
 
+// MARK: - Resolved project model
+
 export interface ResolvedArchicatProject {
   rootDir: string;
   outDir: string;
@@ -143,6 +154,8 @@ export interface ResolvedArchicatProject {
   definitions: ResolvedArchicatDefinition[];
   graph: ArchicatProjectGraph;
 }
+
+// MARK: - Report model
 
 export interface ArchicatBuildReport {
   generatedBy: 'archicat';
@@ -176,7 +189,7 @@ export interface ArchicatGraphReport {
   dependencies: ArchicatGraphDependency[];
 }
 
-// MARK: - Public diagnostics
+// MARK: - Diagnostics model
 
 export interface ArchicatViolation {
   filePath: string;

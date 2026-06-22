@@ -19,7 +19,7 @@ import type {
   ResolvedArchicatSurface,
 } from '@internal/model';
 
-// MARK: - Public
+// MARK: - Project resolving
 
 export function resolveArchicatProject(
   loadedConfig: LoadedArchicatConfig,
@@ -56,7 +56,7 @@ export function resolveArchicatProject(
   };
 }
 
-// MARK: - Private resolve
+// MARK: - Definition resolving
 
 function resolveModule(loadedConfig: LoadedArchicatConfig, loadedModule: LoadedArchicatModule): ResolvedArchicatModule {
   const { contract, contractFilePath, definitionDir } = loadedModule;
@@ -146,7 +146,7 @@ function resolveDeclaredRoot(definitionDir: string, relativeRoot: string, kind: 
   return resolved;
 }
 
-// MARK: - Private graph
+// MARK: - Project graph assembly
 
 function buildGraph(
   definitions: readonly ResolvedArchicatDefinition[],
@@ -180,7 +180,7 @@ function buildGraph(
   };
 }
 
-// MARK: - Private validation
+// MARK: - Project validation
 
 function assertValidName(name: string, filePath: string, kind: string): void {
   if (!/^[a-z][a-z0-9-]*$/u.test(name)) {

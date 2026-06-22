@@ -6,6 +6,13 @@ import { cleanupConsumerProjects, createConsumerProject, createModule } from '..
 import { assertFileExists, readText, writeFile } from '../fixtures/files';
 import { runArchicat } from '../fixtures/run-archicat';
 
+// MARK: - Fixtures
+
+const GENERATED_OUTPUT_TREE = ['libraries', 'modules', 'reports', 'tsconfig.json', 'types'];
+const GENERATED_REPORTS_TREE = ['build.report.json', 'graph.report.json'];
+
+// MARK: - Tests
+
 describe('mirror generation', () => {
   afterAll(() => {
     cleanupConsumerProjects();
@@ -73,20 +80,12 @@ describe('mirror generation', () => {
 
     expect(result.status, result.stderr).toBe(0);
 
-    expect(readDirectoryNames(path.join(root, '.archicat')).sort()).toEqual([
-      'libraries',
-      'modules',
-      'reports',
-      'tsconfig.json',
-      'types',
-    ]);
-
-    expect(readDirectoryNames(path.join(root, '.archicat/reports')).sort()).toEqual([
-      'build.report.json',
-      'graph.report.json',
-    ]);
+    expect(readDirectoryNames(path.join(root, '.archicat')).sort()).toEqual(GENERATED_OUTPUT_TREE);
+    expect(readDirectoryNames(path.join(root, '.archicat/reports')).sort()).toEqual(GENERATED_REPORTS_TREE);
   });
 });
+
+// MARK: - Helpers
 
 function readDirectoryNames(directoryPath: string): string[] {
   return fs.readdirSync(directoryPath);

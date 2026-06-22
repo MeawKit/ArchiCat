@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-// MARK: - Public
+// MARK: - Path utilities
 
 export function normalizePath(value: string): string {
   return value.split(path.sep).join('/');

@@ -1,6 +1,6 @@
 import type { ArchicatGraphDependency } from '@internal/model';
 
-// MARK: - Public
+// MARK: - Dependency cycle validation
 
 export function assertNoDependencyCycles(dependencies: readonly ArchicatGraphDependency[]): void {
   const graph = new Map<string, string[]>();
@@ -19,7 +19,7 @@ export function assertNoDependencyCycles(dependencies: readonly ArchicatGraphDep
   }
 }
 
-// MARK: - Private
+// MARK: - Cycle walk
 
 function visit(
   node: string,

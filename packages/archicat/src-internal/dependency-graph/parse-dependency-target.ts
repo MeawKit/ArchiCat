@@ -1,6 +1,6 @@
 import type { ParsedDependencyTarget } from './dependency-target.js';
 
-// MARK: - Public
+// MARK: - Dependency target parsing
 
 export function parseDependencyTarget(target: string): ParsedDependencyTarget | undefined {
   const match = /^(module|library)\.([a-z][a-z0-9-]*)\.(api|impl)$/u.exec(target);

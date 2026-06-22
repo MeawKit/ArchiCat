@@ -1,7 +1,7 @@
 import type { DependencyOwner, ParsedDependencyTarget } from './dependency-target.js';
 import { formatTargetKind, parseDependencyTarget } from './parse-dependency-target.js';
 
-// MARK: - Public
+// MARK: - Dependency rule validation
 
 export function validateDeclaredDependency(owner: DependencyOwner, dependency: string, knownTargets: ReadonlySet<string>): void {
   const target = parseDependencyTarget(dependency);
@@ -58,7 +58,7 @@ export function formatOwner(owner: DependencyOwner): string {
   return `${capitalize(owner.kind)} "${owner.name}" ${owner.surface}`;
 }
 
-// MARK: - Private
+// MARK: - Rule matching
 
 function capitalize(value: string): string {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;

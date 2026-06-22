@@ -10,7 +10,7 @@ import { generateMirrors } from '@internal/generator/generate-mirrors';
 import { generateReport } from '@internal/generator/generate-report';
 import { generateTsconfig } from '@internal/generator/generate-tsconfig';
 
-// MARK: - Public
+// MARK: - Artifact generation
 
 export async function generate(configFileName?: string): Promise<ResolvedArchicatProject> {
   const project = await loadArchicatBuildContext(configFileName);

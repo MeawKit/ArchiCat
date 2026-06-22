@@ -2,8 +2,11 @@ import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
 import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
-import { assertFileExists, readJson } from '../fixtures/files';
+import { assertFileExists } from '../fixtures/files';
+import { hasDependencyOrigin, readBuildReport } from '../fixtures/reports';
 import { runArchicat } from '../fixtures/run-archicat';
+
+// MARK: - Tests
 
 describe('report generation', () => {
   afterAll(() => {
@@ -11,39 +14,54 @@ describe('report generation', () => {
   });
 
   test('should generate build report with modules, libraries, targets, and dependency origins', () => {
-    const root = createConsumerProject('generate-build-report', {
-      config: {
-        librariesInclude: ['./src/libraries'],
-      },
-    });
+    const root = createReportProject();
 
-    createLibrary(root, { name: 'backend' });
-    createModule(root, { name: 'account' });
-    createModule(root, {
-      name: 'media',
-      dependencies: ['module.account.api', 'library.backend.api'],
-    });
+    expectGenerate(root);
+    expectReportFiles(root);
 
-    const result = runArchicat(root, 'generate');
-
-    expect(result.status, result.stderr).toBe(0);
-    assertFileExists(path.join(root, '.archicat/reports/build.report.json'));
-    assertFileExists(path.join(root, '.archicat/reports/graph.report.json'));
-
-    const report = readJson(path.join(root, '.archicat/reports/build.report.json')) as any;
+    const report = readBuildReport(root);
 
     expect(report.schemaVersion).toBe(1);
-    expect(report.prefixes).toEqual({
-      module: '@module',
-      library: '@library',
-    });
-    expect(report.targets).toContain('module.account.api');
-    expect(report.targets).toContain('module.account.impl');
-    expect(report.targets).toContain('module.media.api');
-    expect(report.targets).toContain('module.media.impl');
-    expect(report.targets).toContain('library.backend.api');
-    expect(report.targets).toContain('library.backend.impl');
-    expect(report.dependencies.some((dependency: any) => dependency.origin === 'derived')).toBe(true);
-    expect(report.dependencies.some((dependency: any) => dependency.origin === 'declared')).toBe(true);
+    expect(report.prefixes).toEqual({ module: '@module', library: '@library' });
+    expect(report.targets).toEqual(expect.arrayContaining([
+      'module.account.api',
+      'module.account.impl',
+      'module.media.api',
+      'module.media.impl',
+      'library.backend.api',
+      'library.backend.impl',
+    ]));
+    expect(hasDependencyOrigin(report, 'derived')).toBe(true);
+    expect(hasDependencyOrigin(report, 'declared')).toBe(true);
   });
 });
+
+// MARK: - Helpers
+
+function createReportProject(): string {
+  const root = createConsumerProject('generate-build-report', {
+    config: {
+      librariesInclude: ['./src/libraries'],
+    },
+  });
+
+  createLibrary(root, { name: 'backend' });
+  createModule(root, { name: 'account' });
+  createModule(root, {
+    name: 'media',
+    dependencies: ['module.account.api', 'library.backend.api'],
+  });
+
+  return root;
+}
+
+function expectGenerate(root: string): void {
+  const result = runArchicat(root, 'generate');
+
+  expect(result.status, result.stderr).toBe(0);
+}
+
+function expectReportFiles(root: string): void {
+  assertFileExists(path.join(root, '.archicat/reports/build.report.json'));
+  assertFileExists(path.join(root, '.archicat/reports/graph.report.json'));
+}

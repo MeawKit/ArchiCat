@@ -11,7 +11,7 @@ import { hasDefaultExport, listTypeScriptFiles } from '@internal/scanner';
 
 import { writeTextFile } from '@internal/generator/file-writer';
 
-// MARK: - Public
+// MARK: - Mirror generation
 
 export function generateMirrors(definitions: readonly ResolvedArchicatDefinition[]): void {
   for (const definition of definitions) {
@@ -26,7 +26,7 @@ export function generateMirrors(definitions: readonly ResolvedArchicatDefinition
   }
 }
 
-// MARK: - Private
+// MARK: - Mirror file formatting
 
 function generateModuleMirror(module: ResolvedArchicatModule): void {
   generateApiMirror(module.api);

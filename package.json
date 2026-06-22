@@ -10,7 +10,8 @@
     "typecheck": "lerna run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "publish:packages": "lerna publish from-package --yes --summary-file ./lerna-publish-summary.json"
+    "publish:packages": "lerna publish from-package --yes --summary-file ./lerna-publish-summary.json",
+    "preinstall": "npx only-allow pnpm"
   },
   "devDependencies": {
     "@types/node": "26.0.0",

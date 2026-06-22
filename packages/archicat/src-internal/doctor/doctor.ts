@@ -1,22 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import ts from 'typescript';
-
+import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
 import { loadArchicatBuildContext } from '@internal/context';
 import type { ArchicatDoctorIssue, ResolvedArchicatProject } from '@internal/model';
+import { normalizePath } from '@internal/path';
+import { readTsconfigCompilerOptions, readTsconfigFile } from '@internal/tsconfig';
 
-// MARK: - Public
+// MARK: - Doctor checks
 
 export async function doctor(configFileName?: string): Promise<ArchicatDoctorIssue[]> {
   const project = await loadArchicatBuildContext(configFileName);
-  return [...checkGeneratedTsconfig(project), ...checkRootTsconfig(project), ...checkPhysicalOmissions(project)];
+  return [...checkGeneratedTsconfig(project), ...checkConsumerTsconfig(project), ...checkPhysicalOmissions(project)];
 }
 
-// MARK: - Private
+// MARK: - Generated TSConfig checks
 
 function checkGeneratedTsconfig(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
-  const generatedTsconfig = path.join(project.outDir, 'tsconfig.json');
+  const generatedTsconfig = makeGeneratedTsconfigPath(project);
 
   if (fs.existsSync(generatedTsconfig)) {
     return [];
@@ -25,45 +26,123 @@ function checkGeneratedTsconfig(project: ResolvedArchicatProject): ArchicatDocto
   return [{ severity: 'warning', message: `Generated tsconfig does not exist yet: ${generatedTsconfig}. Run archicat generate.` }];
 }
 
-function checkRootTsconfig(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
-  const rootTsconfig = path.join(project.rootDir, 'tsconfig.json');
+// MARK: - Consumer TSConfig checks
 
-  if (!fs.existsSync(rootTsconfig)) {
-    return [{ severity: 'warning', message: `Root tsconfig.json was not found: ${rootTsconfig}` }];
+function checkConsumerTsconfig(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
+  const consumerTsconfig = makeConsumerTsconfigPath(project);
+
+  if (!fs.existsSync(consumerTsconfig)) {
+    return [{ severity: 'warning', message: `Consumer tsconfig was not found: ${consumerTsconfig}` }];
   }
 
-  const parsed = ts.parseConfigFileTextToJson(rootTsconfig, fs.readFileSync(rootTsconfig, 'utf8'));
-
-  if (parsed.error) {
-    return [{ severity: 'warning', message: `Failed to parse root tsconfig.json: ${ts.flattenDiagnosticMessageText(parsed.error.messageText, '\n')}` }];
-  }
-
-  const config = parsed.config as { extends?: string; compilerOptions?: { rootDir?: string; paths?: unknown } };
   const issues: ArchicatDoctorIssue[] = [];
+  const config = readConsumerTsconfig(consumerTsconfig, issues);
 
-  if (config.extends !== './.archicat/tsconfig.json' && config.extends !== '.archicat/tsconfig.json') {
-    issues.push({
-      severity: 'warning',
-      message: 'Root tsconfig.json should extend ./.archicat/tsconfig.json for Archicat aliases to work like Nuxt.',
-    });
+  if (!config) {
+    return issues;
   }
 
-  if (config.compilerOptions?.rootDir === 'src' || config.compilerOptions?.rootDir === './src') {
-    issues.push({
-      severity: 'warning',
-      message: 'compilerOptions.rootDir is set to src. Generated .archicat files live outside src and may break tsc.',
-    });
+  const compilerOptions = readConsumerCompilerOptions(config, consumerTsconfig, issues);
+
+  if (!compilerOptions) {
+    return issues;
   }
 
-  if (config.compilerOptions?.paths !== undefined) {
-    issues.push({
-      severity: 'warning',
-      message: 'compilerOptions.paths should move to archicat.config.ts alias. Root tsconfig paths can override generated Archicat aliases.',
-    });
-  }
+  pushInvalidExtendsIssue(issues, project, config);
+  pushRootDirIssue(issues, compilerOptions);
+  pushPathsIssue(issues, compilerOptions);
+  pushBaseUrlIssue(issues, compilerOptions);
+  pushOwnedCollectionIssue(issues, config);
 
   return issues;
 }
+
+function readConsumerTsconfig(tsconfigPath: string, issues: ArchicatDoctorIssue[]): Record<string, unknown> | undefined {
+  try {
+    return readTsconfigFile(tsconfigPath);
+  } catch (error) {
+    issues.push({ severity: 'warning', message: `Failed to parse consumer tsconfig: ${formatError(error)}` });
+    return undefined;
+  }
+}
+
+function readConsumerCompilerOptions(
+  config: Record<string, unknown>,
+  tsconfigPath: string,
+  issues: ArchicatDoctorIssue[],
+): Record<string, unknown> | undefined {
+  try {
+    return readTsconfigCompilerOptions(config, tsconfigPath);
+  } catch (error) {
+    issues.push({ severity: 'warning', message: formatError(error) });
+    return undefined;
+  }
+}
+
+function pushInvalidExtendsIssue(
+  issues: ArchicatDoctorIssue[],
+  project: ResolvedArchicatProject,
+  config: Record<string, unknown>,
+): void {
+  const expectedExtends = makeExpectedConsumerExtends(project);
+
+  if (config.extends === expectedExtends) {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: `Consumer tsconfig should extend ${expectedExtends} for generated Archicat aliases to work.`,
+  });
+}
+
+function pushRootDirIssue(issues: ArchicatDoctorIssue[], compilerOptions: Record<string, unknown>): void {
+  const rootDir = compilerOptions.rootDir;
+
+  if (rootDir !== 'src' && rootDir !== './src') {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: 'compilerOptions.rootDir is set to src. Generated .archicat files live outside src and may break tsc.',
+  });
+}
+
+function pushPathsIssue(issues: ArchicatDoctorIssue[], compilerOptions: Record<string, unknown>): void {
+  if (!Object.hasOwn(compilerOptions, 'paths')) {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: 'compilerOptions.paths should move to archicat.config.ts alias. Consumer tsconfig paths can override generated Archicat aliases.',
+  });
+}
+
+function pushBaseUrlIssue(issues: ArchicatDoctorIssue[], compilerOptions: Record<string, unknown>): void {
+  if (!Object.hasOwn(compilerOptions, 'baseUrl')) {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: 'compilerOptions.baseUrl is not supported. Move aliases into archicat.config.ts alias.',
+  });
+}
+
+function pushOwnedCollectionIssue(issues: ArchicatDoctorIssue[], config: Record<string, unknown>): void {
+  if (config.include === undefined && config.exclude === undefined && config.files === undefined) {
+    return;
+  }
+
+  issues.push({
+    severity: 'warning',
+    message: 'Consumer tsconfig include/exclude/files should move to archicat.config.ts typescript.tsConfig so generated Archicat types stay included.',
+  });
+}
+
+// MARK: - Physical definition checks
 
 function checkPhysicalOmissions(project: ResolvedArchicatProject): ArchicatDoctorIssue[] {
   const issues: ArchicatDoctorIssue[] = [];
@@ -88,6 +167,36 @@ function checkPhysicalOmissions(project: ResolvedArchicatProject): ArchicatDocto
   }
 
   return issues;
+}
+
+// MARK: - Paths
+
+function makeConsumerTsconfigPath(project: ResolvedArchicatProject): string {
+  return path.join(project.rootDir, ArchicatDefaults.typescript.consumerTsconfigFileName);
+}
+
+function makeGeneratedTsconfigPath(project: ResolvedArchicatProject): string {
+  return path.join(project.outDir, ArchicatDefaults.generated.tsconfigFileName);
+}
+
+function makeExpectedConsumerExtends(project: ResolvedArchicatProject): string {
+  let relative = normalizePath(path.relative(project.rootDir, makeGeneratedTsconfigPath(project)));
+
+  if (!isRelativeSpecifier(relative)) {
+    relative = `./${relative}`;
+  }
+
+  return relative;
+}
+
+function isRelativeSpecifier(value: string): boolean {
+  return value.startsWith('./') || value.startsWith('../');
+}
+
+// MARK: - Formatting
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function capitalize(value: string): string {

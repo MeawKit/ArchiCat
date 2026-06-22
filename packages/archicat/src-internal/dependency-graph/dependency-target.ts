@@ -1,6 +1,6 @@
 import type { ArchicatSurface, ArchicatTargetKind } from '@internal/model';
 
-// MARK: - Public
+// MARK: - Dependency target model
 
 export interface ParsedDependencyTarget {
   kind: ArchicatTargetKind;

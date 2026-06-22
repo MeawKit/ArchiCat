@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// MARK: - Public
+// MARK: - File writing
 
 export function resetDirectory(directoryPath: string): void {
   if (fs.existsSync(directoryPath)) {

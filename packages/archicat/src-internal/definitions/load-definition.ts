@@ -10,7 +10,7 @@ import type {
   LoadedArchicatModule,
 } from '@internal/model';
 
-// MARK: - Public
+// MARK: - Definition loading
 
 export async function loadArchicatDefinition(filePath: string, kind: 'module' | 'library' | 'app'): Promise<LoadedArchicatDefinition> {
   switch (kind) {
@@ -59,7 +59,7 @@ export async function loadArchicatApp(filePath: string): Promise<LoadedArchicatA
   };
 }
 
-// MARK: - Private import
+// MARK: - Definition import
 
 async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   const jiti = createJiti(rootDir, {
@@ -71,7 +71,7 @@ async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   return imported as T;
 }
 
-// MARK: - Private validation
+// MARK: - Definition validation
 
 function assertArchicatDefinition(
   input: unknown,

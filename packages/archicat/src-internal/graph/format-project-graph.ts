@@ -1,6 +1,6 @@
 import type { ArchicatGraphDependency, ResolvedArchicatProject } from '@internal/model';
 
-// MARK: - Public
+// MARK: - Graph formatting
 
 export function formatProjectGraph(project: ResolvedArchicatProject): string[] {
   const lines: string[] = [`Modules: ${project.modules.length}`, ''];
@@ -45,7 +45,7 @@ export function formatProjectGraph(project: ResolvedArchicatProject): string[] {
   return trimTrailingEmptyLines(lines);
 }
 
-// MARK: - Private
+// MARK: - Graph line formatting
 
 function pushDependencies(lines: string[], dependencies: readonly ArchicatGraphDependency[], label: string): void {
   if (dependencies.length === 0) {

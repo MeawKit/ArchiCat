@@ -1,49 +1,92 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
-import ts from 'typescript';
-
+import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
 import type { ResolvedArchicatProject } from '@internal/model';
 import { normalizePath } from '@internal/path';
+import { readTsconfigCompilerOptions, readTsconfigExtendsPaths, readTsconfigFile } from '@internal/tsconfig';
 
 import { writeJsonFile } from '@internal/generator/file-writer';
 
-// MARK: - Public
+// MARK: - TSConfig generation
+
+interface GeneratedTsconfig {
+  extends?: string;
+  compilerOptions: {
+    paths: Record<string, string[]>;
+  };
+  include: string[];
+  exclude?: string[];
+  files?: string[];
+}
 
 export function generateTsconfig(project: ResolvedArchicatProject): void {
-  const userTsconfig = project.tsconfigPath ? readUserTsconfig(project.tsconfigPath) : {};
-  const userCompilerOptions = readCompilerOptions(userTsconfig);
-  const userPaths = readPaths(userCompilerOptions, project.tsconfigPath);
+  assertSupportedBaseTsconfigChain(project.tsconfigPath);
+  writeJsonFile(path.join(project.outDir, ArchicatDefaults.generated.tsconfigFileName), makeGeneratedTsconfig(project));
+}
 
-  if (Object.keys(userPaths).length > 0) {
-    throw new Error('Root tsconfig compilerOptions.paths is not supported by Archicat. Move aliases into archicat.config.ts alias.');
+// MARK: - TSConfig model
+
+function makeGeneratedTsconfig(project: ResolvedArchicatProject): GeneratedTsconfig {
+  const tsconfig: GeneratedTsconfig = {
+    compilerOptions: makeCompilerOptions(project),
+    include: makeInclude(project),
+  };
+
+  const extendedTsconfig = makeExtends(project);
+  const exclude = makeExclude(project);
+  const files = makeFiles(project);
+
+  if (extendedTsconfig) {
+    tsconfig.extends = extendedTsconfig;
   }
 
-  const userAliasPaths = rewriteConfiguredAliases(project);
-  const archicatPaths = makeArchicatPaths(project);
+  if (exclude.length > 0) {
+    tsconfig.exclude = exclude;
+  }
+
+  if (files.length > 0) {
+    tsconfig.files = files;
+  }
+
+  return tsconfig;
+}
+
+function makeCompilerOptions(project: ResolvedArchicatProject): GeneratedTsconfig['compilerOptions'] {
+  const userAliasPaths = makeConfiguredAliasPaths(project);
+  const archicatPaths = makeArchicatAliasPaths(project);
 
   assertNoAliasConflicts(project, userAliasPaths, archicatPaths);
 
-  const compilerOptions = {
-    ...rewriteCompilerPathOptions(project, omit(userCompilerOptions, ['baseUrl', 'paths'])),
+  return {
     paths: {
       ...userAliasPaths,
       ...archicatPaths,
     },
   };
-
-  const tsconfig = {
-    compilerOptions,
-    include: ['../src/**/*.ts', './**/*.ts', './types/**/*.d.ts'],
-    exclude: ['../node_modules', '../dist'],
-  };
-
-  writeJsonFile(path.join(project.outDir, 'tsconfig.json'), tsconfig);
 }
 
-// MARK: - Private paths
+function makeExtends(project: ResolvedArchicatProject): string | undefined {
+  return project.tsconfigPath ? makeRelativeTsconfigPath(project.outDir, project.tsconfigPath) : undefined;
+}
 
-function makeArchicatPaths(project: ResolvedArchicatProject): Record<string, string[]> {
+function makeInclude(project: ResolvedArchicatProject): string[] {
+  return unique([
+    ...rewriteProjectPaths(project, project.config.typescript.tsConfig.include),
+    ArchicatDefaults.generated.typesInclude,
+  ]);
+}
+
+function makeExclude(project: ResolvedArchicatProject): string[] {
+  return rewriteProjectPaths(project, project.config.typescript.tsConfig.exclude);
+}
+
+function makeFiles(project: ResolvedArchicatProject): string[] {
+  return rewriteProjectPaths(project, project.config.typescript.tsConfig.files);
+}
+
+// MARK: - Alias paths
+
+function makeArchicatAliasPaths(project: ResolvedArchicatProject): Record<string, string[]> {
   const paths: Record<string, string[]> = {};
   const includeImplementationAliases = project.apps.length > 0;
 
@@ -60,7 +103,7 @@ function makeArchicatPaths(project: ResolvedArchicatProject): Record<string, str
   return paths;
 }
 
-function rewriteConfiguredAliases(project: ResolvedArchicatProject): Record<string, string[]> {
+function makeConfiguredAliasPaths(project: ResolvedArchicatProject): Record<string, string[]> {
   const result: Record<string, string[]> = {};
 
   for (const [alias, target] of Object.entries(project.config.alias)) {
@@ -71,73 +114,13 @@ function rewriteConfiguredAliases(project: ResolvedArchicatProject): Record<stri
   return result;
 }
 
-// MARK: - Private read
+// MARK: - Path rewriting
 
-function readUserTsconfig(tsconfigPath: string): Record<string, unknown> {
-  const raw = fs.readFileSync(tsconfigPath, 'utf8');
-  const parsed = ts.parseConfigFileTextToJson(tsconfigPath, raw);
-
-  if (parsed.error) {
-    throw new Error(formatTsDiagnostic(parsed.error));
-  }
-
-  if (parsed.config == null || typeof parsed.config !== 'object' || Array.isArray(parsed.config)) {
-    throw new Error(`Invalid tsconfig object: ${tsconfigPath}`);
-  }
-
-  return parsed.config as Record<string, unknown>;
-}
-
-function readCompilerOptions(tsconfig: Record<string, unknown>): Record<string, unknown> {
-  const compilerOptions = tsconfig.compilerOptions;
-  return compilerOptions && typeof compilerOptions === 'object' && !Array.isArray(compilerOptions)
-    ? (compilerOptions as Record<string, unknown>)
-    : {};
-}
-
-function readPaths(compilerOptions: Record<string, unknown>, tsconfigPath: string | undefined): Record<string, string[]> {
-  const paths = compilerOptions.paths;
-
-  if (!paths || typeof paths !== 'object' || Array.isArray(paths)) {
-    return {};
-  }
-
-  const result: Record<string, string[]> = {};
-
-  for (const [key, value] of Object.entries(paths)) {
-    if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
-      throw new Error(`Tsconfig paths.${key} must be an array of strings${tsconfigPath ? `: ${tsconfigPath}` : ''}.`);
-    }
-
-    result[key] = [...value];
-  }
-
-  return result;
-}
-
-// MARK: - Private rewrite
-
-function rewriteCompilerPathOptions(
-  project: ResolvedArchicatProject,
-  compilerOptions: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!project.tsconfigPath) {
-    return compilerOptions;
-  }
-
-  const tsconfigDir = path.dirname(project.tsconfigPath);
-  const rewritten = { ...compilerOptions };
-
-  for (const key of ['rootDir', 'outDir', 'declarationDir'] as const) {
-    const value = rewritten[key];
-
-    if (typeof value === 'string') {
-      const absolute = path.isAbsolute(value) ? value : path.resolve(tsconfigDir, value);
-      rewritten[key] = makeRelativeTsconfigPath(project.outDir, absolute);
-    }
-  }
-
-  return rewritten;
+function rewriteProjectPaths(project: ResolvedArchicatProject, values: readonly string[]): string[] {
+  return values.map((value) => {
+    const absolute = path.isAbsolute(value) ? value : path.resolve(project.rootDir, value);
+    return makeRelativeTsconfigPath(project.outDir, absolute);
+  });
 }
 
 function makeRelativeTsconfigPath(fromDir: string, targetPath: string): string {
@@ -150,7 +133,60 @@ function makeRelativeTsconfigPath(fromDir: string, targetPath: string): string {
   return relative;
 }
 
-// MARK: - Private validate
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values)];
+}
+
+// MARK: - Base TSConfig validation
+
+function assertSupportedBaseTsconfigChain(tsconfigPath: string | undefined): void {
+  if (!tsconfigPath) {
+    return;
+  }
+
+  validateBaseTsconfig(tsconfigPath, new Set(), new Set());
+}
+
+function validateBaseTsconfig(tsconfigPath: string, visiting: Set<string>, visited: Set<string>): void {
+  const resolvedPath = path.resolve(tsconfigPath);
+
+  if (visited.has(resolvedPath)) {
+    return;
+  }
+
+  if (visiting.has(resolvedPath)) {
+    throw new Error(`Circular tsconfig extends chain detected: ${resolvedPath}`);
+  }
+
+  visiting.add(resolvedPath);
+
+  const config = readTsconfigFile(resolvedPath);
+  const compilerOptions = readTsconfigCompilerOptions(config, resolvedPath);
+
+  assertNoBaseTsconfigPaths(compilerOptions, resolvedPath);
+  assertNoBaseTsconfigBaseUrl(compilerOptions, resolvedPath);
+
+  for (const extendedPath of readTsconfigExtendsPaths(config, resolvedPath)) {
+    validateBaseTsconfig(extendedPath, visiting, visited);
+  }
+
+  visiting.delete(resolvedPath);
+  visited.add(resolvedPath);
+}
+
+function assertNoBaseTsconfigPaths(compilerOptions: Record<string, unknown>, tsconfigPath: string): void {
+  if (Object.hasOwn(compilerOptions, 'paths')) {
+    throw new Error(`Base tsconfig compilerOptions.paths is not supported by Archicat. Move aliases into archicat.config.ts alias: ${tsconfigPath}`);
+  }
+}
+
+function assertNoBaseTsconfigBaseUrl(compilerOptions: Record<string, unknown>, tsconfigPath: string): void {
+  if (Object.hasOwn(compilerOptions, 'baseUrl')) {
+    throw new Error(`Base tsconfig compilerOptions.baseUrl is not supported by Archicat. Move aliases into archicat.config.ts alias: ${tsconfigPath}`);
+  }
+}
+
+// MARK: - Alias validation
 
 function assertNoAliasConflicts(
   project: ResolvedArchicatProject,
@@ -174,25 +210,4 @@ function assertNoAliasConflicts(
       }
     }
   }
-}
-
-function formatTsDiagnostic(diagnostic: ts.Diagnostic): string {
-  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
-
-  if (diagnostic.file && diagnostic.start !== undefined) {
-    const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-    return `${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1} - ${message}`;
-  }
-
-  return message;
-}
-
-function omit<T extends Record<string, unknown>, Key extends keyof T>(input: T, keys: readonly Key[]): Omit<T, Key> {
-  const result = { ...input };
-
-  for (const key of keys) {
-    delete result[key];
-  }
-
-  return result;
 }

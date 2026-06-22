@@ -1,48 +1,54 @@
+import { compactConfig } from './compact-config.js';
 import type { ArchicatConfig, ArchicatConfigInput } from './archicat-config.js';
+
+type TypeScriptInput = NonNullable<ArchicatConfigInput['typescript']>;
+type TsConfigInput = NonNullable<TypeScriptInput['tsConfig']>;
+type PrefixInput = NonNullable<ArchicatConfigInput['prefixes']>;
+type DefinitionRootInput = NonNullable<ArchicatConfigInput['modules']>;
 
 /**
  * @description Defines the root Archicat config.
  */
 export function defineArchicatConfig(config: ArchicatConfigInput = {}): ArchicatConfig {
-  return Object.freeze({
-    ...(config.root === undefined ? {} : { root: config.root }),
-    ...(config.outDir === undefined ? {} : { outDir: config.outDir }),
-    ...(config.tsconfig === undefined ? {} : { tsconfig: config.tsconfig }),
-    ...(config.alias === undefined ? {} : { alias: Object.freeze({ ...config.alias }) }),
-    ...(config.prefixes === undefined
-      ? {}
-      : {
-          prefixes: Object.freeze({
-            ...(config.prefixes.module === undefined ? {} : { module: config.prefixes.module }),
-            ...(config.prefixes.library === undefined ? {} : { library: config.prefixes.library }),
-          }),
-        }),
-    ...(config.modules === undefined
-      ? {}
-      : {
-          modules: Object.freeze({
-            ...(config.modules.include === undefined
-              ? {}
-              : { include: Object.freeze([...config.modules.include]) }),
-          }),
-        }),
-    ...(config.libraries === undefined
-      ? {}
-      : {
-          libraries: Object.freeze({
-            ...(config.libraries.include === undefined
-              ? {}
-              : { include: Object.freeze([...config.libraries.include]) }),
-          }),
-        }),
-    ...(config.apps === undefined
-      ? {}
-      : {
-          apps: Object.freeze({
-            ...(config.apps.include === undefined
-              ? {}
-              : { include: Object.freeze([...config.apps.include]) }),
-          }),
-        }),
+  return compactConfig({
+    root: config.root,
+    outDir: config.outDir,
+    typescript: config.typescript ? freezeTypeScriptConfig(config.typescript) : undefined,
+    alias: config.alias ? Object.freeze({ ...config.alias }) : undefined,
+    prefixes: config.prefixes ? freezePrefixConfig(config.prefixes) : undefined,
+    modules: config.modules ? freezeDefinitionRootConfig(config.modules) : undefined,
+    libraries: config.libraries ? freezeDefinitionRootConfig(config.libraries) : undefined,
+    apps: config.apps ? freezeDefinitionRootConfig(config.apps) : undefined,
+  });
+}
+
+// MARK: - Config freezing
+
+function freezeTypeScriptConfig(config: TypeScriptInput): NonNullable<ArchicatConfig['typescript']> {
+  return compactConfig({
+    tsConfig: config.tsConfig ? freezeTsConfig(config.tsConfig) : undefined,
+  });
+}
+
+function freezeTsConfig(config: TsConfigInput): NonNullable<NonNullable<ArchicatConfig['typescript']>['tsConfig']> {
+  return compactConfig({
+    extends: config.extends,
+    include: config.include ? Object.freeze([...config.include]) : undefined,
+    exclude: config.exclude ? Object.freeze([...config.exclude]) : undefined,
+    files: config.files ? Object.freeze([...config.files]) : undefined,
+    compilerOptions: config.compilerOptions ? Object.freeze({ ...config.compilerOptions }) : undefined,
+  });
+}
+
+function freezePrefixConfig(config: PrefixInput): NonNullable<ArchicatConfig['prefixes']> {
+  return compactConfig({
+    module: config.module,
+    library: config.library,
+  });
+}
+
+function freezeDefinitionRootConfig(config: DefinitionRootInput): NonNullable<ArchicatConfig['modules']> {
+  return compactConfig({
+    include: config.include ? Object.freeze([...config.include]) : undefined,
   });
 }

@@ -1,83 +1,107 @@
 import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
+import type { ConsumerProjectOptions } from '../fixtures/consumer-project';
 import { cleanupConsumerProjects, createConsumerProject, createModule } from '../fixtures/consumer-project';
 import { readJson } from '../fixtures/files';
 import { runArchicat } from '../fixtures/run-archicat';
+
+// MARK: - Fixtures
+
+const ARCHICAT_TYPES_INCLUDE = './types/**/*.d.ts';
+const ACCOUNT_API_ALIAS = '@module/account';
+const ACCOUNT_API_ALIAS_GLOB = '@module/account/*';
+const ACCOUNT_API_INDEX_PATH = './modules/account/api/index.ts';
+const ACCOUNT_API_GLOB_PATH = './modules/account/api/*';
+
+const DECORATOR_BASE_TSCONFIG = `
+  {
+    "compilerOptions": {
+      // Valid JSONC comment.
+      "target": "ES2024",
+      "experimentalDecorators": true,
+      "emitDecoratorMetadata": true,
+      "skipLibCheck": true
+    }
+  }
+`;
+
+const NODE_TSCONFIG = `
+  {
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+      "types": ["node"]
+    }
+  }
+`;
+
+const BASE_TSCONFIG_WITH_PATHS = `
+  {
+    "compilerOptions": {
+      "target": "ES2024",
+      "paths": {
+        "@app/*": ["src/*"]
+      }
+    }
+  }
+`;
+
+interface GeneratedTsconfig {
+  extends?: string;
+  compilerOptions: {
+    paths: Record<string, string[]>;
+    baseUrl?: unknown;
+    experimentalDecorators?: unknown;
+  };
+  include?: string[];
+  exclude?: string[];
+}
+
+// MARK: - Tests
 
 describe('tsconfig generation', () => {
   afterAll(() => {
     cleanupConsumerProjects();
   });
 
-  test('should generate TypeScript 6 compatible paths without baseUrl', () => {
-    const root = createConsumerProject('generate-tsconfig-paths');
+  test('should generate TypeScript 6 compatible aliases without baseUrl', () => {
+    const root = createProjectWithAccountModule('generate-tsconfig-paths');
 
-    createModule(root, { name: 'account' });
+    expectGenerate(root);
 
-    const result = runArchicat(root, 'generate');
+    const tsconfig = readGeneratedTsconfig(root);
 
-    expect(result.status, result.stderr).toBe(0);
-
-    const tsconfig = readJson(path.join(root, '.archicat/tsconfig.json')) as any;
-
-    expect('baseUrl' in tsconfig.compilerOptions).toBe(false);
-    expect(tsconfig.compilerOptions.paths['@module/account']).toEqual(['./modules/account/api/index.ts']);
-    expect(tsconfig.compilerOptions.paths['@module/account/*']).toEqual(['./modules/account/api/*']);
+    expect(tsconfig.compilerOptions.baseUrl).toBeUndefined();
+    expectPath(tsconfig, ACCOUNT_API_ALIAS, ACCOUNT_API_INDEX_PATH);
+    expectPath(tsconfig, ACCOUNT_API_ALIAS_GLOB, ACCOUNT_API_GLOB_PATH);
+    expect(tsconfig.include).toEqual(['../src', ARCHICAT_TYPES_INCLUDE]);
   });
 
-  test('should parse JSONC tsconfig and generate configured aliases', () => {
-    const root = createConsumerProject('generate-tsconfig-jsonc-alias', {
-      config: {
-        alias: {
-          '@app/*': './src/*',
-        },
-      },
-      tsconfigBase: `
-        {
-          "compilerOptions": {
-            // Valid JSONC comment.
-            "target": "ES2024",
-            "module": "NodeNext",
-            "moduleResolution": "NodeNext",
-            "strict": true,
-            "rootDir": ".",
-          }
-        }
-      `,
-    });
+  test('should generate configured tsConfig layer and configured aliases', () => {
+    const root = createLayerProject();
 
-    createModule(root, { name: 'account' });
+    expectGenerate(root);
 
-    const result = runArchicat(root, 'generate');
+    const tsconfig = readGeneratedTsconfig(root);
 
-    expect(result.status, result.stderr).toBe(0);
-
-    const tsconfig = readJson(path.join(root, '.archicat/tsconfig.json')) as any;
-
-    expect(tsconfig.compilerOptions.rootDir).toBe('..');
-    expect(tsconfig.compilerOptions.paths['@app/*']).toEqual(['../src/*']);
-    expect(tsconfig.compilerOptions.paths['@module/account']).toEqual(['./modules/account/api/index.ts']);
+    expect(tsconfig.extends).toBe('../tsconfig.node.json');
+    expectPath(tsconfig, '@app/*', '../src/*');
+    expectPath(tsconfig, ACCOUNT_API_ALIAS, ACCOUNT_API_INDEX_PATH);
+    expect(tsconfig.include).toEqual([
+      '../bootstrap.ts',
+      '../src/app',
+      '../src/modules',
+      '../types',
+      ARCHICAT_TYPES_INCLUDE,
+    ]);
+    expect(tsconfig.exclude).toEqual(['../node_modules', '../dist']);
+    expect(tsconfig.compilerOptions.experimentalDecorators).toBeUndefined();
   });
 
-  test('should reject root tsconfig paths', () => {
-    const root = createConsumerProject('generate-tsconfig-root-paths', {
-      tsconfigBase: `
-        {
-          "compilerOptions": {
-            "target": "ES2024",
-            "module": "NodeNext",
-            "moduleResolution": "NodeNext",
-            "strict": true,
-            "paths": {
-              "@app/*": ["src/*"]
-            }
-          }
-        }
-      `,
+  test('should reject base tsconfig paths in extends chain', () => {
+    const root = createProjectWithAccountModule('generate-tsconfig-root-paths', {
+      tsconfigBase: BASE_TSCONFIG_WITH_PATHS,
     });
-
-    createModule(root, { name: 'account' });
 
     const result = runArchicat(root, 'generate');
 
@@ -85,8 +109,31 @@ describe('tsconfig generation', () => {
     expect(result.stderr).toMatch(/Move aliases into archicat.config.ts alias/);
   });
 
+  test('should reject typescript.tsConfig compilerOptions.paths', () => {
+    const root = createProjectWithAccountModule('generate-tsconfig-user-paths', {
+      config: {
+        typescript: {
+          tsConfig: {
+            extends: './tsconfig.base.json',
+            include: ['src'],
+            compilerOptions: {
+              paths: {
+                '@app/*': ['src/*'],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const result = runArchicat(root, 'generate');
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/typescript\.tsConfig\.compilerOptions\.paths is not supported/);
+  });
+
   test('should reject configured aliases inside the reserved Archicat prefix', () => {
-    const root = createConsumerProject('generate-tsconfig-conflict', {
+    const root = createProjectWithAccountModule('generate-tsconfig-conflict', {
       config: {
         alias: {
           '@module/*': './src/module/*',
@@ -94,11 +141,55 @@ describe('tsconfig generation', () => {
       },
     });
 
-    createModule(root, { name: 'account' });
-
     const result = runArchicat(root, 'generate');
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/Alias conflict/);
   });
 });
+
+// MARK: - Helpers
+
+function createLayerProject(): string {
+  return createProjectWithAccountModule('generate-tsconfig-layer-alias', {
+    config: {
+      typescript: {
+        tsConfig: {
+          extends: './tsconfig.node.json',
+          include: ['bootstrap.ts', 'src/app', 'src/modules', 'types'],
+          exclude: ['node_modules', 'dist'],
+        },
+      },
+      alias: {
+        '@app/*': './src/*',
+      },
+    },
+    tsconfigBase: DECORATOR_BASE_TSCONFIG,
+    tsconfigNode: NODE_TSCONFIG,
+  });
+}
+
+function createProjectWithAccountModule(
+  name: string,
+  options: ConsumerProjectOptions = {},
+): string {
+  const root = createConsumerProject(name, options);
+
+  createModule(root, { name: 'account' });
+
+  return root;
+}
+
+function expectGenerate(root: string): void {
+  const result = runArchicat(root, 'generate');
+
+  expect(result.status, result.stderr).toBe(0);
+}
+
+function expectPath(tsconfig: GeneratedTsconfig, alias: string, expected: string): void {
+  expect(tsconfig.compilerOptions.paths[alias]).toEqual([expected]);
+}
+
+function readGeneratedTsconfig(root: string): GeneratedTsconfig {
+  return readJson(path.join(root, '.archicat/tsconfig.json')) as GeneratedTsconfig;
+}

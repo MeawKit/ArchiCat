@@ -6,10 +6,11 @@ import { createJiti } from 'jiti';
 
 import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
 import type { LoadedArchicatConfig, ResolvedArchicatConfig } from '@internal/model';
+import { resolveProjectTsconfig } from '@internal/tsconfig';
 
-// MARK: - Public
+// MARK: - Config loading
 
-export async function loadArchicatConfig(configFileName = 'archicat.config.ts'): Promise<LoadedArchicatConfig> {
+export async function loadArchicatConfig(configFileName: string = ArchicatDefaults.configFileName): Promise<LoadedArchicatConfig> {
   const cwd = process.cwd();
   const configFilePath = path.resolve(cwd, configFileName);
 
@@ -23,8 +24,8 @@ export async function loadArchicatConfig(configFileName = 'archicat.config.ts'):
   const resolvedConfig = resolveConfig(config);
   const rootDir = path.resolve(cwd, resolvedConfig.root);
   const outDir = path.resolve(rootDir, resolvedConfig.outDir);
-  const reportsDir = path.resolve(outDir, 'reports');
-  const tsconfigPath = resolveTsconfigPath(rootDir, resolvedConfig.tsconfig);
+  const reportsDir = path.resolve(outDir, ArchicatDefaults.generated.reportsDirName);
+  const tsconfigPath = resolveTsconfigPath(rootDir, resolvedConfig.typescript.tsConfig.extends);
 
   return {
     configFilePath,
@@ -37,7 +38,7 @@ export async function loadArchicatConfig(configFileName = 'archicat.config.ts'):
   };
 }
 
-// MARK: - Private import
+// MARK: - Config import
 
 async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   const jiti = createJiti(rootDir, {
@@ -49,46 +50,56 @@ async function importDefault<T>(filePath: string, rootDir: string): Promise<T> {
   return imported as T;
 }
 
-// MARK: - Private resolve
+// MARK: - Config resolving
 
 function resolveConfig(config: ArchicatConfig): ResolvedArchicatConfig {
   return {
     root: config.root ?? ArchicatDefaults.root,
     outDir: config.outDir ?? ArchicatDefaults.outDir,
+    typescript: resolveTypeScriptConfig(config),
     alias: { ...ArchicatDefaults.alias, ...(config.alias ?? {}) },
-    ...(config.tsconfig === undefined ? {} : { tsconfig: config.tsconfig }),
     prefixes: {
       module: config.prefixes?.module ?? ArchicatDefaults.prefixes.module,
       library: config.prefixes?.library ?? ArchicatDefaults.prefixes.library,
     },
-    modules: {
-      include: [...(config.modules?.include ?? ArchicatDefaults.modules.include)],
-    },
-    libraries: {
-      include: [...(config.libraries?.include ?? ArchicatDefaults.libraries.include)],
-    },
-    apps: {
-      include: [...(config.apps?.include ?? ArchicatDefaults.apps.include)],
-    },
+    modules: resolveDefinitionRootConfig(config.modules, ArchicatDefaults.modules),
+    libraries: resolveDefinitionRootConfig(config.libraries, ArchicatDefaults.libraries),
+    apps: resolveDefinitionRootConfig(config.apps, ArchicatDefaults.apps),
   };
 }
 
-function resolveTsconfigPath(rootDir: string, configuredTsconfig: string | undefined): string | undefined {
-  if (configuredTsconfig) {
-    const resolved = path.resolve(rootDir, configuredTsconfig);
+function resolveTypeScriptConfig(config: ArchicatConfig): ResolvedArchicatConfig['typescript'] {
+  const tsConfig = config.typescript?.tsConfig;
+  const defaults = ArchicatDefaults.typescript.tsConfig;
+  const resolvedTsConfig: ResolvedArchicatConfig['typescript']['tsConfig'] = {
+    include: [...(tsConfig?.include ?? defaults.include)],
+    exclude: [...(tsConfig?.exclude ?? defaults.exclude)],
+    files: [...(tsConfig?.files ?? defaults.files)],
+  };
 
-    if (!fs.existsSync(resolved)) {
-      throw new Error(`Configured Archicat tsconfig was not found: ${resolved}`);
-    }
-
-    return resolved;
+  if (tsConfig?.extends) {
+    resolvedTsConfig.extends = tsConfig.extends;
   }
 
-  const candidates = ['tsconfig.base.json', 'tsconfig.json'].map((fileName) => path.join(rootDir, fileName));
-  return candidates.find((candidate) => fs.existsSync(candidate));
+  return { tsConfig: resolvedTsConfig };
 }
 
-// MARK: - Private validate
+function resolveDefinitionRootConfig(
+  config: { readonly include?: readonly string[] } | undefined,
+  defaults: { readonly include: readonly string[] },
+): { include: string[] } {
+  return { include: [...(config?.include ?? defaults.include)] };
+}
+
+function resolveTsconfigPath(rootDir: string, configuredExtends: string | undefined): string | undefined {
+  if (!configuredExtends) {
+    return undefined;
+  }
+
+  return resolveProjectTsconfig(rootDir, configuredExtends);
+}
+
+// MARK: - Config validation
 
 function assertArchicatConfig(input: unknown, filePath: string): asserts input is ArchicatConfig {
   if (input == null || typeof input !== 'object') {
@@ -99,7 +110,7 @@ function assertArchicatConfig(input: unknown, filePath: string): asserts input i
 
   assertOptionalNonEmptyString(config.root, 'root', filePath);
   assertOptionalNonEmptyString(config.outDir, 'outDir', filePath);
-  assertOptionalNonEmptyString(config.tsconfig, 'tsconfig', filePath);
+  assertOptionalTsConfig(config.typescript?.tsConfig, filePath);
 
   assertOptionalInclude(config.modules?.include, 'modules.include', filePath);
   assertOptionalInclude(config.libraries?.include, 'libraries.include', filePath);
@@ -108,6 +119,48 @@ function assertArchicatConfig(input: unknown, filePath: string): asserts input i
 
   assertOptionalPrefix(config.prefixes?.module, 'prefixes.module', filePath);
   assertOptionalPrefix(config.prefixes?.library, 'prefixes.library', filePath);
+}
+
+function assertOptionalTsConfig(value: unknown, filePath: string): void {
+  if (value === undefined) {
+    return;
+  }
+
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Archicat config typescript.tsConfig must be an object: ${filePath}`);
+  }
+
+  const config = value as Record<string, unknown>;
+
+  assertOptionalNonEmptyString(config.extends, 'typescript.tsConfig.extends', filePath);
+  assertOptionalInclude(config.include, 'typescript.tsConfig.include', filePath);
+  assertOptionalInclude(config.exclude, 'typescript.tsConfig.exclude', filePath);
+  assertOptionalInclude(config.files, 'typescript.tsConfig.files', filePath);
+  assertNoUnsupportedCompilerOptions(config.compilerOptions, filePath);
+}
+
+function assertNoUnsupportedCompilerOptions(value: unknown, filePath: string): void {
+  if (value === undefined) {
+    return;
+  }
+
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Archicat config typescript.tsConfig.compilerOptions must be an object: ${filePath}`);
+  }
+
+  const compilerOptions = value as Record<string, unknown>;
+
+  if (Object.hasOwn(compilerOptions, 'paths')) {
+    throw new Error('Archicat config typescript.tsConfig.compilerOptions.paths is not supported. Move aliases into archicat.config.ts alias.');
+  }
+
+  if (Object.hasOwn(compilerOptions, 'baseUrl')) {
+    throw new Error('Archicat config typescript.tsConfig.compilerOptions.baseUrl is not supported. Move aliases into archicat.config.ts alias.');
+  }
+
+  if (Object.keys(compilerOptions).length > 0) {
+    throw new Error('Archicat config typescript.tsConfig.compilerOptions is not supported. Put compiler options in the base or app tsconfig.');
+  }
 }
 
 function assertOptionalNonEmptyString(value: unknown, key: string, filePath: string): void {

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import ts from 'typescript';
 
-// MARK: - Public
+// MARK: - Import scanning
 
 export interface ScannedImport {
   moduleSpecifier: string;
@@ -74,7 +74,7 @@ export function hasDefaultExport(filePath: string): boolean {
   return found;
 }
 
-// MARK: - Private
+// MARK: - AST scanning
 
 function hasExportDefaultModifiers(node: ts.Node): boolean {
   const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;

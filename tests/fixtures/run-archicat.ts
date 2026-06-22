@@ -2,7 +2,7 @@ import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 
 import { cliPath } from './paths';
 
-// MARK: - Public
+// MARK: - CLI fixture
 
 export function runArchicat(cwd: string, command: string, args: readonly string[] = []): SpawnSyncReturns<string> {
   return spawnSync(process.execPath, [cliPath, command, ...args], {

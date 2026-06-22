@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// MARK: - Public
+// MARK: - Source file scanning
 
 export function listTypeScriptFiles(rootPath: string): string[] {
   if (!fs.existsSync(rootPath)) {
@@ -21,7 +21,7 @@ export function isTypeScriptSourceFile(filePath: string): boolean {
   return /\.(?:ts|mts|cts|tsx)$/u.test(filePath) && !/\.d\.(?:ts|mts|cts)$/u.test(filePath);
 }
 
-// MARK: - Private
+// MARK: - File walking
 
 function walk(rootPath: string): string[] {
   const result: string[] = [];

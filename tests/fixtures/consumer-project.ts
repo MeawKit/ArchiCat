@@ -9,13 +9,22 @@ import { archicatPackageRoot, tmpRoot } from './paths';
 export interface ConsumerProjectOptions {
   readonly config?: ConsumerProjectConfig;
   readonly tsconfigBase?: string;
+  readonly tsconfigNode?: string;
 }
 
 export interface ConsumerProjectConfig {
   readonly modulesInclude?: readonly string[];
   readonly librariesInclude?: readonly string[];
   readonly appsInclude?: readonly string[];
-  readonly tsconfig?: string;
+  readonly typescript?: {
+    readonly tsConfig?: {
+      readonly extends?: string;
+      readonly include?: readonly string[];
+      readonly exclude?: readonly string[];
+      readonly files?: readonly string[];
+      readonly compilerOptions?: Record<string, unknown>;
+    };
+  };
   readonly prefixes?: Record<string, string>;
   readonly alias?: Record<string, string>;
 }
@@ -37,7 +46,40 @@ export interface AppFixtureOptions {
   readonly index?: string;
 }
 
-// MARK: - Public
+// MARK: - Fixture defaults
+
+const ARCHICAT_CONFIG_FILE_NAME = 'archicat.config.ts';
+const CONSUMER_TSCONFIG_FILE_NAME = 'tsconfig.json';
+
+const DEFAULT_MODULES_INCLUDE = ['./src/modules'] as const;
+const DEFAULT_LIBRARIES_INCLUDE = [] as const;
+const DEFAULT_APPS_INCLUDE = [] as const;
+
+const DEFAULT_TYPESCRIPT_CONFIG = Object.freeze({
+  tsConfig: Object.freeze({
+    extends: './tsconfig.base.json',
+    include: Object.freeze(['src'] as const),
+  }),
+});
+
+const DEFAULT_BASE_TSCONFIG = `
+  {
+    "compilerOptions": {
+      "target": "ES2024",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "strict": true
+    }
+  }
+`;
+
+const ROOT_TSCONFIG = `
+  {
+    "extends": "./.archicat/tsconfig.json"
+  }
+`;
+
+// MARK: - Fixture builders
 
 export function createConsumerProject(name: string, options: ConsumerProjectOptions = {}): string {
   fs.mkdirSync(tmpRoot, { recursive: true });
@@ -46,7 +88,7 @@ export function createConsumerProject(name: string, options: ConsumerProjectOpti
 
   linkArchicatPackage(root);
   writeRootConfig(root, options.config ?? {});
-  writeTsconfig(root, options.tsconfigBase ?? undefined);
+  writeTsconfig(root, options);
 
   return root;
 }
@@ -57,25 +99,16 @@ export function createModule(root: string, options: DefinitionFixtureOptions): s
   const fields = [`name: '${name}'`];
 
   if (options.api !== false) {
-    const api = makeSurface('./api', options.apiDependencies ?? []);
-    fields.push(`api: ${api}`);
+    fields.push(`api: ${makeSurface('./api', options.apiDependencies ?? [])}`);
     writeFile(path.join(moduleDir, 'api/index.ts'), options.apiIndex ?? `export const ${toIdentifier(name)}Api = '${name}';`);
   }
 
   if (options.impl !== false) {
-    const impl = makeSurface('./impl', options.implDependencies ?? options.dependencies ?? []);
-    fields.push(`impl: ${impl}`);
+    fields.push(`impl: ${makeSurface('./impl', options.implDependencies ?? options.dependencies ?? [])}`);
     writeFile(path.join(moduleDir, 'impl/index.ts'), options.implIndex ?? `export const ${toIdentifier(name)}Impl = '${name}';`);
   }
 
-  writeFile(path.join(moduleDir, 'archicat.module.ts'), `
-    import { defineModule } from 'archicat';
-
-    export default defineModule({
-      ${fields.join(',\n      ')},
-    });
-  `);
-
+  writeDefinitionFile(path.join(moduleDir, 'archicat.module.ts'), 'defineModule', fields);
   return moduleDir;
 }
 
@@ -85,25 +118,16 @@ export function createLibrary(root: string, options: DefinitionFixtureOptions): 
   const fields = [`name: '${name}'`];
 
   if (options.api !== false) {
-    const api = makeSurface('./api', options.apiDependencies ?? []);
-    fields.push(`api: ${api}`);
+    fields.push(`api: ${makeSurface('./api', options.apiDependencies ?? [])}`);
     writeFile(path.join(libraryDir, 'api/index.ts'), options.apiIndex ?? `export const ${toIdentifier(name)}Library = '${name}';`);
   }
 
   if (options.impl !== false) {
-    const impl = makeSurface('./impl', options.implDependencies ?? options.dependencies ?? []);
-    fields.push(`impl: ${impl}`);
+    fields.push(`impl: ${makeSurface('./impl', options.implDependencies ?? options.dependencies ?? [])}`);
     writeFile(path.join(libraryDir, 'impl/index.ts'), options.implIndex ?? `export const ${toIdentifier(name)}LibraryImpl = '${name}';`);
   }
 
-  writeFile(path.join(libraryDir, 'archicat.library.ts'), `
-    import { defineLibrary } from 'archicat';
-
-    export default defineLibrary({
-      ${fields.join(',\n      ')},
-    });
-  `);
-
+  writeDefinitionFile(path.join(libraryDir, 'archicat.library.ts'), 'defineLibrary', fields);
   return libraryDir;
 }
 
@@ -117,13 +141,7 @@ export function createApp(root: string, options: AppFixtureOptions): string {
   }
 
   writeFile(path.join(appDir, 'index.ts'), options.index ?? `export const ${toIdentifier(name)}App = '${name}';`);
-  writeFile(path.join(appDir, 'archicat.app.ts'), `
-    import { defineApp } from 'archicat';
-
-    export default defineApp({
-      ${fields.join(',\n      ')},
-    });
-  `);
+  writeDefinitionFile(path.join(appDir, 'archicat.app.ts'), 'defineApp', fields);
 
   return appDir;
 }
@@ -132,7 +150,7 @@ export function cleanupConsumerProjects(): void {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 }
 
-// MARK: - Private
+// MARK: - Fixture file writing
 
 function linkArchicatPackage(root: string): void {
   const nodeModulesDir = path.join(root, 'node_modules');
@@ -144,53 +162,63 @@ function linkArchicatPackage(root: string): void {
 }
 
 function writeRootConfig(root: string, config: ConsumerProjectConfig): void {
-  const modulesInclude = config.modulesInclude ?? ['./src/modules'];
-  const librariesInclude = config.librariesInclude ?? [];
-  const appsInclude = config.appsInclude ?? [];
-  const tsconfig = config.tsconfig ?? './tsconfig.base.json';
-  const prefixBlock = config.prefixes
-    ? `\n      prefixes: ${formatObjectLiteral(config.prefixes)},`
-    : '';
-  const aliasBlock = config.alias
-    ? `\n      alias: ${formatObjectLiteral(config.alias, true)},`
-    : '';
+  writeFile(path.join(root, ARCHICAT_CONFIG_FILE_NAME), makeRootConfig(config));
+}
 
-  writeFile(path.join(root, 'archicat.config.ts'), `
-    import { defineArchicatConfig } from 'archicat';
+function writeTsconfig(root: string, options: ConsumerProjectOptions): void {
+  writeFile(path.join(root, 'tsconfig.base.json'), options.tsconfigBase ?? DEFAULT_BASE_TSCONFIG);
 
-    export default defineArchicatConfig({
-      tsconfig: '${tsconfig}',${prefixBlock}${aliasBlock}
-      modules: {
-        include: ${JSON.stringify(modulesInclude)},
-      },
-      libraries: {
-        include: ${JSON.stringify(librariesInclude)},
-      },
-      apps: {
-        include: ${JSON.stringify(appsInclude)},
-      },
+  if (options.tsconfigNode !== undefined) {
+    writeFile(path.join(root, 'tsconfig.node.json'), options.tsconfigNode);
+  }
+
+  writeFile(path.join(root, CONSUMER_TSCONFIG_FILE_NAME), ROOT_TSCONFIG);
+}
+
+function writeDefinitionFile(filePath: string, factoryName: string, fields: readonly string[]): void {
+  writeFile(filePath, `
+    import { ${factoryName} } from 'archicat';
+
+    export default ${factoryName}({
+      ${fields.join(',\n      ')},
     });
   `);
 }
 
-function writeTsconfig(root: string, tsconfigBase?: string): void {
-  writeFile(path.join(root, 'tsconfig.base.json'), tsconfigBase ?? `
-    {
-      "compilerOptions": {
-        "target": "ES2024",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "strict": true
-      }
-    }
-  `);
+// MARK: - Config formatting
 
-  writeFile(path.join(root, 'tsconfig.json'), `
-    {
-      "extends": "./.archicat/tsconfig.json"
-    }
-  `);
+function makeRootConfig(config: ConsumerProjectConfig): string {
+  const fields = [
+    `typescript: ${formatValue(config.typescript ?? DEFAULT_TYPESCRIPT_CONFIG)}`,
+    ...makeOptionalField('prefixes', config.prefixes, false),
+    ...makeOptionalField('alias', config.alias, true),
+    `modules: { include: ${JSON.stringify(config.modulesInclude ?? DEFAULT_MODULES_INCLUDE)} }`,
+    `libraries: { include: ${JSON.stringify(config.librariesInclude ?? DEFAULT_LIBRARIES_INCLUDE)} }`,
+    `apps: { include: ${JSON.stringify(config.appsInclude ?? DEFAULT_APPS_INCLUDE)} }`,
+  ];
+
+  return `
+    import { defineArchicatConfig } from 'archicat';
+
+    export default defineArchicatConfig({
+      ${fields.join(',\n      ')},
+    });
+  `;
 }
+
+function makeOptionalField(key: string, value: Record<string, string> | undefined, quoteKeys: boolean): string[] {
+  return value ? [`${key}: ${formatObjectLiteral(value, quoteKeys)}`] : [];
+}
+
+function formatObjectLiteral(value: Record<string, string>, quoteKeys = false): string {
+  return JSON.stringify(value, null, 8).replace(/"([^"\\]+)":/gu, quoteKeys ? "'$1':" : '$1:');
+}
+
+function formatValue(value: unknown): string {
+  return JSON.stringify(value, null, 8);
+}
+
+// MARK: - Definition formatting
 
 function makeSurface(root: string, dependencies: readonly string[]): string {
   if (!dependencies.length) {
@@ -202,8 +230,4 @@ function makeSurface(root: string, dependencies: readonly string[]): string {
 
 function toIdentifier(value: string): string {
   return value.replace(/-([a-z0-9])/gu, (_, char: string) => char.toUpperCase());
-}
-
-function formatObjectLiteral(value: Record<string, string>, quoteKeys = false): string {
-  return JSON.stringify(value, null, 8).replace(/"([^"\\]+)":/gu, quoteKeys ? "'$1':" : '$1:');
 }

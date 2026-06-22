@@ -1,18 +1,19 @@
 import path from 'node:path';
 
+import { ArchicatDefaults } from '@internal/configuration/archicat-defaults';
 import type { ArchicatBuildReport, ArchicatGraphReport, ResolvedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
 import { makeRelativeDisplayPath } from '@internal/path';
 
 import { writeJsonFile } from '@internal/generator/file-writer';
 
-// MARK: - Public
+// MARK: - Report generation
 
 export function generateReport(project: ResolvedArchicatProject): void {
-  writeJsonFile(path.join(project.reportsDir, 'build.report.json'), makeBuildReport(project));
-  writeJsonFile(path.join(project.reportsDir, 'graph.report.json'), makeGraphReport(project));
+  writeJsonFile(path.join(project.reportsDir, ArchicatDefaults.generated.buildReportFileName), makeBuildReport(project));
+  writeJsonFile(path.join(project.reportsDir, ArchicatDefaults.generated.graphReportFileName), makeGraphReport(project));
 }
 
-// MARK: - Private
+// MARK: - Report formatting
 
 function makeBuildReport(project: ResolvedArchicatProject): ArchicatBuildReport {
   return {

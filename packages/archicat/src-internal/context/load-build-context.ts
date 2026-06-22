@@ -3,7 +3,7 @@ import { discoverDefinitionFiles, loadArchicatDefinition } from '@internal/defin
 import type { LoadedArchicatDefinition, ResolvedArchicatProject } from '@internal/model';
 import { resolveArchicatProject } from '@internal/resolver';
 
-// MARK: - Public
+// MARK: - Build context loading
 
 export async function loadArchicatBuildContext(configFileName?: string): Promise<ResolvedArchicatProject> {
   const loadedConfig = await loadArchicatConfig(configFileName);

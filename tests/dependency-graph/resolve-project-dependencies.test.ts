@@ -1,9 +1,10 @@
-import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
 import { cleanupConsumerProjects, createConsumerProject, createModule } from '../fixtures/consumer-project';
-import { readJson } from '../fixtures/files';
+import { findDependency, readBuildReport } from '../fixtures/reports';
 import { runArchicat } from '../fixtures/run-archicat';
+
+// MARK: - Tests
 
 describe('dependency graph', () => {
   afterAll(() => {
@@ -15,13 +16,9 @@ describe('dependency graph', () => {
 
     createModule(root, { name: 'account' });
 
-    const result = runArchicat(root, 'generate');
+    expectGenerate(root);
 
-    expect(result.status, result.stderr).toBe(0);
-
-    const report = readJson(path.join(root, '.archicat/reports/build.report.json')) as any;
-
-    expect(report.dependencies.find((dependency: any) => dependency.from === 'module.account.impl')).toEqual({
+    expect(findDependency(readBuildReport(root), 'module.account.impl', 'module.account.api')).toEqual({
       from: 'module.account.impl',
       to: 'module.account.api',
       origin: 'derived',
@@ -34,17 +31,13 @@ describe('dependency graph', () => {
     createModule(root, { name: 'account' });
     createModule(root, { name: 'media', dependencies: ['module.account.api'] });
 
-    const result = runArchicat(root, 'generate');
+    expectGenerate(root);
 
-    expect(result.status, result.stderr).toBe(0);
-
-    const report = readJson(path.join(root, '.archicat/reports/build.report.json')) as any;
-
-    expect(report.dependencies.some((dependency: any) => (
-      dependency.from === 'module.media.impl'
-      && dependency.to === 'module.account.api'
-      && dependency.origin === 'declared'
-    ))).toBe(true);
+    expect(findDependency(readBuildReport(root), 'module.media.impl', 'module.account.api')).toEqual({
+      from: 'module.media.impl',
+      to: 'module.account.api',
+      origin: 'declared',
+    });
   });
 
   test('should reject unknown dependency targets', () => {
@@ -70,3 +63,11 @@ describe('dependency graph', () => {
     expect(result.stderr).toMatch(/Cyclic Archicat dependency/);
   });
 });
+
+// MARK: - Helpers
+
+function expectGenerate(root: string): void {
+  const result = runArchicat(root, 'generate');
+
+  expect(result.status, result.stderr).toBe(0);
+}
