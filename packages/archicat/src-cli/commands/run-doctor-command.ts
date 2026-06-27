@@ -4,5 +4,5 @@ import type { ArchicatCliCommandOptions, ArchicatCliCommandResult } from './comm
 // MARK: - Public
 
 export async function runDoctorCommand(options: ArchicatCliCommandOptions): Promise<ArchicatCliCommandResult> {
-  return await ArchicatPipeline.build('doctor').use(doctorStep()).run(options);
+  return await ArchicatPipeline.make('doctor').use(doctorStep()).run(options);
 }

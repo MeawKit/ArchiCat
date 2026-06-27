@@ -4,5 +4,5 @@ import type { ArchicatCliCommandOptions, ArchicatCliCommandResult } from './comm
 // MARK: - Public
 
 export async function runValidateCommand(options: ArchicatCliCommandOptions): Promise<ArchicatCliCommandResult> {
-  return await ArchicatPipeline.build('validate').use(validateStep()).run(options);
+  return await ArchicatPipeline.make('validate').use(validateStep()).run(options);
 }

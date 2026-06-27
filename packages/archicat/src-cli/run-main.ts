@@ -1,4 +1,6 @@
-import type { ArchicatCliCommandOptions, ArchicatCliCommandResult } from './commands/index.js';
+import { ConsoleOutput } from '@internal/console';
+
+import type { ArchicatCliCommandLine, ArchicatCliCommandOptions, ArchicatCliCommandResult } from './commands/index.js';
 import {
   runBuildCommand,
   runCheckCommand,
@@ -7,26 +9,24 @@ import {
   runGraphCommand,
   runValidateCommand,
 } from './commands/index.js';
-import { ArchicatCliLogger } from './logger/cli-logger.js';
 
 // MARK: - Public
 
 export async function runMain(argv = process.argv.slice(2)): Promise<void> {
   const [command, ...rest] = argv;
-  const logger = new ArchicatCliLogger();
 
   try {
     const options = parseOptions(rest);
-    const result = await runCommand(command, options, logger);
+    const result = await runCommand(command, options);
 
     if (!result) {
       return;
     }
 
-    logger.result(result);
+    printResult(result);
     process.exitCode = result.exitCode;
   } catch (error) {
-    logger.line({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+    ConsoleOutput.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
 }
@@ -36,7 +36,6 @@ export async function runMain(argv = process.argv.slice(2)): Promise<void> {
 async function runCommand(
   command: string | undefined,
   options: ArchicatCliCommandOptions,
-  logger: ArchicatCliLogger,
 ): Promise<ArchicatCliCommandResult | undefined> {
   switch (command) {
     case 'build':
@@ -55,13 +54,70 @@ async function runCommand(
     case '--help':
     case '-h':
     case undefined:
-      logger.help();
+      printHelp();
       return undefined;
     default:
-      logger.line({ kind: 'error', message: `Unknown command: ${command}` });
-      logger.help();
+      ConsoleOutput.error(`Unknown command: ${command}`);
+      printHelp();
       return { exitCode: 1, lines: [] };
   }
+}
+
+// MARK: - Private output
+
+function printResult(result: ArchicatCliCommandResult): void {
+  for (const line of result.lines) {
+    printLine(line);
+  }
+}
+
+function printLine(line: ArchicatCliCommandLine): void {
+  switch (line.kind) {
+    case 'title':
+      ConsoleOutput.title(line.product, line.command, line.rows ?? []);
+      return;
+    case 'panel':
+      ConsoleOutput.panel(line.title, line.rows, line.badge);
+      return;
+    case 'success':
+      ConsoleOutput.success(formatStatusLine(line));
+      return;
+    case 'info':
+      if (line.message.length === 0) {
+        ConsoleOutput.emptyLine();
+        return;
+      }
+
+      ConsoleOutput.info(formatStatusLine(line));
+      return;
+    case 'warning':
+      ConsoleOutput.warn(formatStatusLine(line));
+      return;
+    case 'error':
+      ConsoleOutput.error(formatStatusLine(line));
+      return;
+  }
+}
+
+function formatStatusLine(line: Extract<ArchicatCliCommandLine, { kind: 'success' | 'info' | 'warning' | 'error' }>): string {
+  return line.label ? ConsoleOutput.step(line.label, line.message) : line.message;
+}
+
+function printHelp(): void {
+  ConsoleOutput.log([
+    'ArchiCat',
+    '',
+    'Usage:',
+    '  archicat build [--config archicat.config.ts]',
+    '  archicat validate [--config archicat.config.ts]',
+    '  archicat graph [--config archicat.config.ts]',
+    '  archicat doctor [--config archicat.config.ts]',
+    '',
+    'Aliases:',
+    '  archicat generate -> archicat build',
+    '  archicat check    -> archicat validate',
+    '',
+  ].join('\n'));
 }
 
 // MARK: - Private options

@@ -2,6 +2,7 @@ export type {
   ArchicatCliCommandLine,
   ArchicatCliCommandOptions,
   ArchicatCliCommandResult,
+  ArchicatCliPanelRow,
 } from './command-result.js';
 export { runBuildCommand } from './run-build-command.js';
 export { runCheckCommand } from './run-check-command.js';

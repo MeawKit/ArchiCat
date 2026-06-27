@@ -14,7 +14,7 @@ export function doctorStep(): ArchicatPipelineStep {
       const issues = doctorProject(await context.getProject());
 
       if (issues.length === 0) {
-        return successStep('doctor', 'Project diagnostics passed.');
+        return successStep('doctor', 'Project diagnostics passed');
       }
 
       const hasErrors = issues.some((issue) => issue.severity === 'error');
@@ -24,7 +24,8 @@ export function doctorStep(): ArchicatPipelineStep {
         lines: [
           {
             kind: hasErrors ? 'error' : 'warning',
-            message: formatStep('doctor', hasErrors ? 'Project diagnostics failed.' : 'Project diagnostics completed with warnings.'),
+            label: 'doctor',
+            message: hasErrors ? 'Project diagnostics failed' : 'Project diagnostics completed with warnings',
           },
           ...issues.map((issue) => ({
             kind: issue.severity === 'error' ? 'error' : 'warning',
@@ -43,13 +44,13 @@ export function validateStep(): ArchicatPipelineStep {
       const violations = validateProject(await context.getProject());
 
       if (violations.length === 0) {
-        return successStep('validate', 'Architecture boundaries passed.');
+        return successStep('validate', 'Architecture boundaries passed');
       }
 
       return {
         exitCode: 1,
         lines: [
-          { kind: 'error', message: formatStep('validate', 'Architecture validation failed.') },
+          { kind: 'error', label: 'validate', message: 'Architecture validation failed' },
           ...violations.map((violation) => ({ kind: 'error' as const, message: formatViolation(violation) })),
         ],
       };
@@ -67,9 +68,15 @@ export function generateStep(): ArchicatPipelineStep {
       return {
         exitCode: 0,
         lines: [
-          { kind: 'success', message: formatStep('build', `Mirrored ${project.modules.length} modules.`) },
-          { kind: 'success', message: formatStep('build', `Mirrored ${project.libraries.length} libraries.`) },
-          { kind: 'success', message: formatStep('build', `Resolved ${project.apps.length} apps.`) },
+          {
+            kind: 'panel',
+            title: 'mirrored',
+            rows: [
+              { label: 'modules', value: project.modules.length },
+              { label: 'libraries', value: project.libraries.length },
+              { label: 'apps', value: project.apps.length },
+            ],
+          },
         ],
       };
     },
@@ -78,13 +85,9 @@ export function generateStep(): ArchicatPipelineStep {
 
 // MARK: - Private
 
-function successStep(name: string, message: string): ArchicatCliCommandResult {
+function successStep(label: string, message: string): ArchicatCliCommandResult {
   return {
     exitCode: 0,
-    lines: [{ kind: 'success', message: formatStep(name, message) }],
+    lines: [{ kind: 'success', label, message }],
   };
-}
-
-function formatStep(name: string, message: string): string {
-  return `${name.padEnd(10, ' ')} ${message}`;
 }

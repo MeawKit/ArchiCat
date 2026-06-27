@@ -21,5 +21,5 @@
     "unrun": "0.3.1",
     "vitest": "4.1.0"
   },
-  "packageManager": "pnpm@11.8.0"
+  "packageManager": "pnpm@11.9.0"
 }
