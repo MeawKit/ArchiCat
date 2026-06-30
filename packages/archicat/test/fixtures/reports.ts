@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { readJson } from './files';
+import { readJson } from '@test/fixtures/files';
 
 // MARK: - Report fixtures
 

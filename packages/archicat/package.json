@@ -35,7 +35,9 @@
   ],
   "scripts": {
     "build": "tsdown --config tsdown.config.cli.ts --config-loader unrun && tsdown --config tsdown.config.src.ts --config-loader unrun",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "jiti": "2.7.0",

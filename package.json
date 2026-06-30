@@ -8,8 +8,8 @@
     "clean": "node scripts/clean.mjs",
     "build": "pnpm run clean && lerna run build",
     "typecheck": "lerna run typecheck",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "lerna run test --stream",
+    "test:watch": "lerna run test:watch --stream",
     "publish:packages": "lerna publish from-package --yes --summary-file ./lerna-publish-summary.json",
     "preinstall": "npx only-allow pnpm"
   },

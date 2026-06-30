@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
-import { assertFileExists } from '../fixtures/files';
-import { hasDependencyOrigin, readBuildReport } from '../fixtures/reports';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '@test/fixtures/consumer-project';
+import { assertFileExists } from '@test/fixtures/files';
+import { hasDependencyOrigin, readBuildReport } from '@test/fixtures/reports';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 // MARK: - Tests
 

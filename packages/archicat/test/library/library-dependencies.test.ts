@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '@test/fixtures/consumer-project';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 describe('library dependencies', () => {
   afterAll(() => {

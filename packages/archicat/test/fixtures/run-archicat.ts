@@ -1,6 +1,6 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 
-import { cliPath } from './paths';
+import { cliPath } from '@test/fixtures/paths';
 
 // MARK: - CLI fixture
 

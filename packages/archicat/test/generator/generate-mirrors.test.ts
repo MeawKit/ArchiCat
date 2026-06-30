@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createConsumerProject, createModule } from '../fixtures/consumer-project';
-import { assertFileExists, readText, writeFile } from '../fixtures/files';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createConsumerProject, createModule } from '@test/fixtures/consumer-project';
+import { assertFileExists, readText, writeFile } from '@test/fixtures/files';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 // MARK: - Fixtures
 

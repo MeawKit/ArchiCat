@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { writeFile } from './files';
-import { archicatPackageRoot, tmpRoot } from './paths';
+import { writeFile } from '@test/fixtures/files';
+import { archicatPackageRoot, tmpRoot } from '@test/fixtures/paths';
 
 // MARK: - Types
 

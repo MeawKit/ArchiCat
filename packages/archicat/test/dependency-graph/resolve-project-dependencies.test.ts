@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createConsumerProject, createModule } from '../fixtures/consumer-project';
-import { findDependency, readBuildReport } from '../fixtures/reports';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createConsumerProject, createModule } from '@test/fixtures/consumer-project';
+import { findDependency, readBuildReport } from '@test/fixtures/reports';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 // MARK: - Tests
 

@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
-import { readText } from '../fixtures/files';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createConsumerProject, createLibrary, createModule } from '@test/fixtures/consumer-project';
+import { readText } from '@test/fixtures/files';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 describe('graph type generation', () => {
   afterAll(() => {

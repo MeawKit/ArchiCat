@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
 
-import type { ConsumerProjectOptions } from '../fixtures/consumer-project';
-import { cleanupConsumerProjects, createConsumerProject, createModule } from '../fixtures/consumer-project';
-import { readJson } from '../fixtures/files';
-import { runArchicat } from '../fixtures/run-archicat';
+import type { ConsumerProjectOptions } from '@test/fixtures/consumer-project';
+import { cleanupConsumerProjects, createConsumerProject, createModule } from '@test/fixtures/consumer-project';
+import { readJson } from '@test/fixtures/files';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 // MARK: - Fixtures
 

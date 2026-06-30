@@ -3,8 +3,8 @@ import path from 'node:path';
 
 import { afterAll, describe, expect, test } from 'vitest';
 
-import { cleanupConsumerProjects, createApp, createConsumerProject, createLibrary, createModule } from '../fixtures/consumer-project';
-import { runArchicat } from '../fixtures/run-archicat';
+import { cleanupConsumerProjects, createApp, createConsumerProject, createLibrary, createModule } from '@test/fixtures/consumer-project';
+import { runArchicat } from '@test/fixtures/run-archicat';
 
 describe('generate command', () => {
   afterAll(() => {
